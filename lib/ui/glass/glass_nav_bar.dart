@@ -57,10 +57,25 @@ class GlassNavBar extends StatelessWidget {
                 final scheme = Theme.of(context).colorScheme;
                 // Docked, it takes the page's own colour with a hairline on top, so it
                 // reads as the page's edge and not a slab; floating, it's a raised pill.
+                if (!floating) {
+                  // Square to the screen edges, the page's own colour.
+                  return Material(
+                    color: scheme.surface,
+                    child: DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: scheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                      child: child,
+                    ),
+                  );
+                }
                 return Material(
-                  color: floating
-                      ? scheme.surfaceContainerHigh
-                      : scheme.surface,
+                  color: scheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                       corner.clamp(0, 100) / 100 * box.biggest.shortestSide / 2,
@@ -92,20 +107,15 @@ class GlassNavBar extends StatelessWidget {
         ],
       );
       if (!floating) {
-        // Docked to the bottom and the edges, as glass like the floating bar: only the
-        // top corners round, and the bar covers the safe area under it.
-        final top = Radius.circular(28 * nav.barRadius / 100);
+        // Docked: square to the bottom and the edges, covering the safe area under it.
         final inset = MediaQuery.paddingOf(context).bottom;
         return SizedBox(
           height: (withLabels ? 76 : 64) + inset,
-          child: ClipRRect(
-            borderRadius: BorderRadius.vertical(top: top),
-            child: surface(
-              0,
-              Padding(
-                padding: EdgeInsets.fromLTRB(12, 6, 12, 6 + inset),
-                child: Material(type: MaterialType.transparency, child: row),
-              ),
+          child: surface(
+            0,
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 6, 12, 6 + inset),
+              child: Material(type: MaterialType.transparency, child: row),
             ),
           ),
         );
