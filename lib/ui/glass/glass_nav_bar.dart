@@ -39,13 +39,19 @@ class GlassNavBar extends StatelessWidget {
           // Glass, or the plain tonal surface of Material 3.
           Widget surface(double corner, Widget child) => isGlass
               ? GlassSurface(style: app.ui.glass.value, cornerPercent: corner, child: child)
-              : LayoutBuilder(
-                  builder: (context, box) => Material(
-                    color: Theme.of(context).colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(corner.clamp(0, 100) / 100 * box.biggest.shortestSide / 2),
+              : LayoutBuilder(builder: (context, box) {
+                  final scheme = Theme.of(context).colorScheme;
+                  // Docked, it takes the page's own colour with a hairline on top, so it
+                  // reads as the page's edge and not a slab; floating, it's a raised pill.
+                  return Material(
+                    color: floating ? scheme.surfaceContainerHigh : scheme.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(corner.clamp(0, 100) / 100 * box.biggest.shortestSide / 2),
+                      side: floating ? BorderSide.none : BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+                    ),
                     child: child,
-                  ),
-                );
+                  );
+                });
           final row = Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
