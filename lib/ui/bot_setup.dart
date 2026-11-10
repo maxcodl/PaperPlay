@@ -38,10 +38,11 @@ class _BotSetupScreenState extends State<BotSetupScreen> {
       _results.clear();
     });
     try {
-      final result = await app.restoreFromBackup(path);
+      // A new install has no look of its own to protect, so the backup's layout is taken too.
+      final result = await app.restoreFromBackup(path, applyLayout: true);
       _restored = true;
-      _results.add(BotCheck('Backup restored', true, '${result.songs} songs. Enter your bot details to finish.'));
-      if (mounted && await applyBackupCredentials(context, result.sealedCredentials)) {
+      _results.add(BotCheck('Backup restored', true, '${result.songs} songs${result.layoutApplied ? ' and the app layout' : ''}. Enter your bot details to finish.'));
+      if (mounted && await applyBackupCredentials(context, result.sealedCredentials, result.sealedUserSession)) {
         return; // The library opens by itself now.
       }
     } on FormatException catch (e) {
@@ -208,6 +209,28 @@ class _BotSetupScreenState extends State<BotSetupScreen> {
             ),
             if (_running) ...[
               gap,
+              ValueListenableBuilder(
+                valueListenable: app.backupProgress,
+                builder: (context, backup, _) => backup == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Expanded(child: Text(backup.stage, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                              if (backup.fraction != null) Text('${(backup.fraction! * 100).round()}%'),
+                            ]),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(minHeight: 8, value: backup.fraction),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
               ValueListenableBuilder(
                 valueListenable: app.scanner.fraction,
                 builder: (context, fraction, _) => LinearProgressIndicator(value: fraction),

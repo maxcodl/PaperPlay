@@ -207,6 +207,10 @@ Future<File> createBackup(
     'playlistSongs': (await db.select(db.playlistSongs).get()).map((r) => r.toJson()).toList(),
     'missingTracks': (await db.select(db.missingTracks).get()).map((r) => r.toJson()).toList(),
     'moodVotes': (await db.select(db.moodVotes).get()).map((r) => r.toJson()).toList(),
+    // Topics and which posts are copies of a song: without them a restored library has to read
+    // every chat again to find them.
+    'forumTopics': (await db.select(db.forumTopics).get()).map((r) => r.toJson()).toList(),
+    'postCopies': (await db.select(db.postCopies).get()).map((r) => r.toJson()).toList(),
     'prefs': allPrefs.map((r) => r.toJson()).toList(),
     // The app's layout and settings, kept apart from 'prefs' so a restore can leave them out.
     'layout': {for (final r in allPrefs) if (layoutPrefs.contains(r.key)) r.key: r.value},
@@ -263,6 +267,9 @@ class _Backup {
             ? const []
             : _rows(json, 'missingTracks', MissingTrack.fromJson),
         moodVotes = json['moodVotes'] == null ? const [] : _rows(json, 'moodVotes', MoodVote.fromJson),
+        hasTopics = json['forumTopics'] != null && json['postCopies'] != null,
+        forumTopics = json['forumTopics'] == null ? const [] : _rows(json, 'forumTopics', ForumTopic.fromJson),
+        postCopies = json['postCopies'] == null ? const [] : _rows(json, 'postCopies', PostCopy.fromJson),
         prefs = _rows(json, 'prefs', Pref.fromJson),
         layout = {for (final e in ((json['layout'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'};
 
@@ -275,6 +282,11 @@ class _Backup {
   final List<MissingTrack> missingTracks;
   final List<MoodVote> moodVotes;
   final List<Pref> prefs;
+
+  /// Whether the backup carries topics and copies, so they needn't be read from Telegram again.
+  final bool hasTopics;
+  final List<ForumTopic> forumTopics;
+  final List<PostCopy> postCopies;
 
   /// [defaults] fill columns that backups from older versions don't have.
   static List<T> _rows<T>(
@@ -401,10 +413,23 @@ Future<({int songs, String? sealedCredentials, String? sealedUserSession, bool l
           await db.into(db.prefs).insertOnConflictUpdate(PrefsCompanion.insert(key: 'profile_photo', value: saved.path));
         }
       }
+      for (final r in backup.forumTopics) {
+        await db.into(db.forumTopics).insert(r.toCompanion(false));
+      }
+      for (final r in backup.postCopies) {
+        await db.into(db.postCopies).insert(r.toCompanion(false));
+      }
       onProgress?.call('Finishing', 0.95);
       await db.prepareOlderRows();
-      // Topics and copies aren't in a backup, so they have to be read again.
-      await db.customStatement("DELETE FROM prefs WHERE key = 'topics_read'");
+      // Backups from before topics were included have to read them again.
+      if (backup.hasTopics) {
+        // Read already, as in the backup, so nothing is walked again.
+        for (final r in backup.prefs.where((r) => r.key == 'topics_read')) {
+          await db.into(db.prefs).insertOnConflictUpdate(r.toCompanion(false));
+        }
+      } else {
+        await db.customStatement("DELETE FROM prefs WHERE key = 'topics_read'");
+      }
     });
     final sealed = archive.findFile(_credentialsEntry)?.readBytes();
     onProgress?.call('Done', 1);

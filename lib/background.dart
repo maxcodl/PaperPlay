@@ -128,6 +128,10 @@ class Background with TrayListener, WindowListener {
 
   /// What a tapped notification asked to open, once.
   Future<String?> takeOpen() => Platform.isAndroid ? _android<String>('takeOpen') : Future.value();
+  /// Lets the person choose where to put the file at [path] and copies it there from disk, so a
+  /// large file never goes through memory. True when saved; false if they backed out or it failed.
+  Future<bool> saveFile(String name, String path) async => await _android<bool>('saveFile', {'name': name, 'path': path}) == true;
+
   Future<bool?> askNotifications() => _android<bool>('requestNotifications');
 
   // Windows.

@@ -396,12 +396,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final zip = await app.saveBackup(password: password.isEmpty ? null : password);
       final day = DateTime.now().toIso8601String().split('T').first;
-      final saved = await FilePicker.saveFile(
-        fileName: 'paperplay-backup-$day.zip',
-        bytes: await zip.readAsBytes(),
-      );
+      final name = 'paperplay-backup-$day.zip';
+      app.backupProgress.value = (stage: 'Choose where to save it, then it is copied', fraction: null);
+      final bool saved;
+      if (Platform.isAndroid) {
+        // Copied from disk by Android, not sent through the app: the file can be hundreds of MB.
+        saved = await app.background.saveFile(name, zip.path);
+      } else {
+        saved = await FilePicker.saveFile(fileName: name, bytes: await zip.readAsBytes()) != null;
+      }
+      app.backupProgress.value = null;
       await zip.delete();
-      _say(saved == null ? 'Backup not saved.' : 'Backup saved.');
+      _say(saved ? 'Backup saved.' : 'Backup not saved.');
     } catch (e) {
       _say('Couldn\'t save the backup: $e');
     }

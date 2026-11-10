@@ -82,6 +82,11 @@ class MainActivity : AudioServiceActivity() {
                     openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName"),
                 )
                 "requestNotifications" -> requestNotifications(result)
+                "saveFile" -> saveFile(
+                    call.argument<String>("name") ?: "backup.zip",
+                    call.argument<String>("path") ?: "",
+                    result,
+                )
                 "charging" -> result.success(
                     (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).isCharging,
                 )
@@ -125,6 +130,58 @@ class MainActivity : AudioServiceActivity() {
         true
     } catch (_: Exception) {
         false
+    }
+
+    private var saveResult: MethodChannel.Result? = null
+    private var savePath: String? = null
+
+    /**
+     * Lets the person pick where a file goes, then copies it there from disk in pieces. The file
+     * never passes through the Flutter channel: a 300 MB backup sent that way needs a 300 MB
+     * array here, more than the app's heap allows, and crashed it.
+     */
+    private fun saveFile(name: String, path: String, result: MethodChannel.Result) {
+        if (path.isEmpty() || !java.io.File(path).exists()) {
+            result.success(false)
+            return
+        }
+        saveResult?.success(false)
+        saveResult = result
+        savePath = path
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/zip")
+            .putExtra(Intent.EXTRA_TITLE, name)
+        startActivityForResult(intent, SAVE_REQUEST)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != SAVE_REQUEST) {
+            @Suppress("DEPRECATION")
+            super.onActivityResult(requestCode, resultCode, data)
+            return
+        }
+        val result = saveResult
+        val path = savePath
+        saveResult = null
+        savePath = null
+        val uri = data?.data
+        if (result == null || path == null || resultCode != RESULT_OK || uri == null) {
+            result?.success(false)
+            return
+        }
+        Thread {
+            val ok = try {
+                java.io.File(path).inputStream().use { input ->
+                    contentResolver.openOutputStream(uri, "w")!!.use { output -> input.copyTo(output, 1 shl 20) }
+                }
+                true
+            } catch (_: Exception) {
+                false
+            }
+            handler.post { result.success(ok) }
+        }.start()
     }
 
     private var notifyResult: MethodChannel.Result? = null
@@ -235,6 +292,7 @@ class MainActivity : AudioServiceActivity() {
         const val OPEN_EXTRA = "open"
         const val ACCESS_REQUEST = 4711
         const val NOTIFY_REQUEST = 4713
+        const val SAVE_REQUEST = 4714
     }
 
     private fun openSwitcher(): Boolean {
