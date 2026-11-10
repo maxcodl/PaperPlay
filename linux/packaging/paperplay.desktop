@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Paper Play
+Comment=Music player that uses your Telegram channels as storage
+Exec=paperplay
+Icon=paperplay
+Categories=AudioVideo;Audio;Player;
+Terminal=false
+StartupWMClass=paperplay

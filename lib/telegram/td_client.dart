@@ -185,10 +185,13 @@ const _wanted = {
   'updateForumTopicInfo',
 };
 
-/// Windows ships tdjson.dll beside the exe; Android uses the plugin's .so.
+/// Windows ships tdjson.dll beside the exe, Linux libtdjson.so in its lib folder; Android uses
+/// the plugin's .so.
 final String? _tdLib = Platform.isWindows
     ? p.join(p.dirname(Platform.resolvedExecutable), 'tdjson.dll')
-    : null;
+    : Platform.isLinux
+        ? p.join(p.dirname(Platform.resolvedExecutable), 'lib', 'libtdjson.so')
+        : null;
 
 /// TDLib aborts the whole app if `td_receive` is ever called from two threads at once. The
 /// app outlives its window on Android, so reopening it can start a new Dart engine while

@@ -84,8 +84,8 @@ Future<void> main() async {
         androidNotificationOngoing: true,
       ),
     );
-  } else if (Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized(windows: true);
+  } else if (Platform.isWindows || Platform.isLinux) {
+    JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
   }
   // Before any player exists, so Windows can hook the first one.
   app.sound.start();
