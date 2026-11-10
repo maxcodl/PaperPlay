@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:m3e_design/m3e_design.dart';
 
+import 'look.dart';
+
 /// Material 3 Expressive's fast spatial easing: it overshoots slightly, then settles.
 const expressiveSpring = Cubic(0.42, 1.67, 0.21, 0.90);
 
@@ -45,7 +47,13 @@ TextTheme _nunito(TextTheme t) => t.copyWith(
 
 /// [seeThrough] leaves pages and bars unpainted, so a background behind the whole app (the
 /// cover gradient) shows through them.
-ThemeData buildTheme(ColorScheme base, {bool amoled = true, bool seeThrough = false}) {
+ThemeData buildTheme(
+  ColorScheme base, {
+  bool amoled = true,
+  bool seeThrough = false,
+  Map<LookGroup, Look> looks = const {},
+}) {
+  bool glass(LookGroup g) => looks[g] == Look.glass;
   final dark = base.brightness == Brightness.dark;
   final scheme = dark && amoled ? _amoled(base) : base;
   final type = Typography.material2021(platform: TargetPlatform.android);
@@ -53,7 +61,11 @@ ThemeData buildTheme(ColorScheme base, {bool amoled = true, bool seeThrough = fa
   // directly from here, like the app bar title, would be tiny without it.
   final text = _nunito(type.englishLike.merge(dark ? type.white : type.black))
       .apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
-  final round = RoundedRectangleBorder(borderRadius: BorderRadius.circular(28));
+  // Glass: a veil over what's behind, with a faint light rim. Material: solid tonal colour.
+  Color veil(Color c, bool g) => g ? c.withValues(alpha: 0.55) : c;
+  BorderSide rim(bool g) => g ? BorderSide(color: Colors.white.withValues(alpha: 0.18)) : BorderSide.none;
+  final overlays = glass(LookGroup.overlays), cards = glass(LookGroup.cards), bars = glass(LookGroup.bars);
+  final round = RoundedRectangleBorder(borderRadius: BorderRadius.circular(28), side: rim(overlays));
   return withM3ETheme(
     ThemeData(
       useMaterial3: true,
@@ -65,7 +77,7 @@ ThemeData buildTheme(ColorScheme base, {bool amoled = true, bool seeThrough = fa
         builders: {TargetPlatform.android: PredictiveBackPageTransitionsBuilder()},
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: seeThrough ? Colors.transparent : scheme.surface,
+        backgroundColor: seeThrough || bars ? Colors.transparent : scheme.surface,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         titleTextStyle: text.headlineMedium,
@@ -77,20 +89,23 @@ ThemeData buildTheme(ColorScheme base, {bool amoled = true, bool seeThrough = fa
         labelTextStyle: WidgetStatePropertyAll(text.labelMedium),
       ),
       cardTheme: CardThemeData(
-        color: scheme.surfaceContainerLow,
+        color: veil(scheme.surfaceContainerLow, cards),
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: rim(cards)),
       ),
-      dialogTheme: DialogThemeData(backgroundColor: scheme.surfaceContainerHigh, shape: round),
+      dialogTheme: DialogThemeData(backgroundColor: veil(scheme.surfaceContainerHigh, overlays), shape: round),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: scheme.surfaceContainer,
+        backgroundColor: veil(scheme.surfaceContainer, overlays),
         showDragHandle: true,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          side: rim(overlays),
+        ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: scheme.surfaceContainerHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        color: veil(scheme.surfaceContainerHigh, overlays),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: rim(overlays)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

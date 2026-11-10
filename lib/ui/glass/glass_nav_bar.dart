@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
+import '../look.dart';
 import 'glass_surface.dart';
 import 'nav_style.dart';
 
@@ -29,11 +30,22 @@ class GlassNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: Listenable.merge([app.ui.navStyle, app.ui.glass]),
+        listenable: Listenable.merge([app.ui.navStyle, app.ui.glass, app.ui.looks[LookGroup.nav]!]),
         builder: (context, _) {
           final nav = app.ui.navStyle.value;
           final withLabels = nav.layout == NavLayout.labels || nav.layout == NavLayout.dock;
           final side = nav.layout == NavLayout.dock ? 12.0 : 24.0;
+          final isGlass = app.ui.look(LookGroup.nav) == Look.glass;
+          // Glass, or the plain tonal surface of Material 3.
+          Widget surface(double corner, Widget child) => isGlass
+              ? GlassSurface(style: app.ui.glass.value, cornerPercent: corner, child: child)
+              : LayoutBuilder(
+                  builder: (context, box) => Material(
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(corner.clamp(0, 100) / 100 * box.biggest.shortestSide / 2),
+                    child: child,
+                  ),
+                );
           final row = Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -52,10 +64,9 @@ class GlassNavBar extends StatelessWidget {
               height: (withLabels ? 76 : 64) + inset,
               child: ClipRRect(
                 borderRadius: BorderRadius.vertical(top: top),
-                child: GlassSurface(
-                  style: app.ui.glass.value,
-                  cornerPercent: 0,
-                  child: Padding(
+                child: surface(
+                  0,
+                  Padding(
                     padding: EdgeInsets.fromLTRB(12, 6, 12, 6 + inset),
                     child: Material(type: MaterialType.transparency, child: row),
                   ),
@@ -68,15 +79,11 @@ class GlassNavBar extends StatelessWidget {
             minimum: EdgeInsets.fromLTRB(side, 0, side, 12),
             child: SizedBox(
               height: withLabels ? 76 : 64,
-              child: GlassSurface(
-                style: app.ui.glass.value,
-                cornerPercent: nav.barRadius,
-                child: Padding(
+              child: surface(
+                nav.barRadius,
+                Padding(
                   padding: const EdgeInsets.all(6),
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: row,
-                  ),
+                  child: Material(type: MaterialType.transparency, child: row),
                 ),
               ),
             ),

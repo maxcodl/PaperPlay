@@ -15,6 +15,7 @@ import 'channels_screen.dart';
 import 'connection.dart';
 import 'duplicates_screen.dart';
 import 'glass/glass_settings.dart';
+import 'glass/style_settings.dart';
 import 'sort_general_screen.dart';
 import 'mix_settings.dart';
 import 'library_status.dart';
@@ -653,6 +654,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final limit = _limit ?? AppDb.defaultCacheLimit;
     final limitIndex = _limits.indexWhere((l) => l >= limit).clamp(0, _limits.length - 1);
     return [
+          const _Category(
+            title: 'Style',
+            subtitle: 'Material 3 Expressive or glass, mixed as you like',
+            keywords: 'style look glass material expressive blur',
+            icon: Icons.auto_awesome_rounded,
+            children: [StyleSettings()],
+          ),
           const _Category(
             title: 'Appearance',
             subtitle: 'Theme, colors, display',

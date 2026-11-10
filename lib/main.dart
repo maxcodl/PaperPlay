@@ -17,6 +17,7 @@ import 'ui/cover_gradient.dart';
 import 'ui/glass/glass_surface.dart';
 import 'ui/home.dart';
 import 'ui/keyboard.dart';
+import 'ui/look.dart';
 import 'ui/theme.dart';
 import 'ui/ui_prefs.dart';
 import 'ui/widgets.dart';
@@ -143,6 +144,7 @@ class TeleplayerApp extends StatelessWidget {
         app.ui.accent,
         app.ui.coverGradient,
         app.coverAccentReady,
+        app.ui.lookChanges,
       ]),
       builder: (context, _) => MaterialApp(
         title: 'Paper Play',
@@ -155,11 +157,16 @@ class TeleplayerApp extends StatelessWidget {
         // change rebuilt every widget for 200 ms, which was the stutter when switching.
         themeAnimationDuration: app.ui.accent.value == accentCover ? Duration.zero : kThemeAnimationDuration,
         builder: (context, child) => CoverGradient(child: child ?? const SizedBox.shrink()),
-        theme: buildTheme(_scheme(light, Brightness.light), seeThrough: app.ui.coverGradient.value),
+        theme: buildTheme(
+          _scheme(light, Brightness.light),
+          seeThrough: app.ui.coverGradient.value,
+          looks: {for (final g in LookGroup.values) g: app.ui.look(g)},
+        ),
         darkTheme: buildTheme(
           _scheme(dark, Brightness.dark),
           amoled: app.ui.amoled.value,
           seeThrough: app.ui.coverGradient.value,
+          looks: {for (final g in LookGroup.values) g: app.ui.look(g)},
         ),
         home: ValueListenableBuilder(
           valueListenable: app.libraryReady,

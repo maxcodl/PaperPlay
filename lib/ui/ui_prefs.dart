@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../library/db.dart';
 import 'glass/glass_style.dart';
 import 'glass/nav_style.dart';
+import 'look.dart';
 
 /// An accent colour the owner can pick.
 class AccentOption {
@@ -46,6 +47,24 @@ class UiPrefs {
   final navStyle = ValueNotifier(const NavStyle());
   final glass = ValueNotifier(const GlassStyle());
 
+  /// Material 3 or glass, for each part of the interface. The bar was glass before this was
+  /// a choice, so it starts that way.
+  final looks = {for (final g in LookGroup.values) g: ValueNotifier(g == LookGroup.nav ? Look.glass : Look.material)};
+  Listenable get lookChanges => Listenable.merge(looks.values.toList());
+
+  Look look(LookGroup g) => looks[g]!.value;
+
+  Future<void> setLook(LookGroup g, Look l) {
+    looks[g]!.value = l;
+    return _db.setPref('look_${g.name}', l.name);
+  }
+
+  Future<void> setAllLooks(Look l) async {
+    for (final g in LookGroup.values) {
+      await setLook(g, l);
+    }
+  }
+
   /// Who the profile page says it is, and their photo's file. This device only.
   final profileName = ValueNotifier('Listener');
   final profilePhoto = ValueNotifier<String?>(null);
@@ -71,6 +90,10 @@ class UiPrefs {
     floatingNav.value = await _db.pref(_floatingKey) != 'false';
     navStyle.value = _decode(await _db.pref(_navKey), NavStyle.fromJson, const NavStyle());
     glass.value = _decode(await _db.pref(_glassKey), GlassStyle.fromJson, const GlassStyle());
+    for (final g in LookGroup.values) {
+      final saved = await _db.pref('look_${g.name}');
+      looks[g]!.value = Look.values.where((l) => l.name == saved).firstOrNull ?? looks[g]!.value;
+    }
     profileName.value = await _db.pref('profile_name') ?? 'Listener';
     final photo = await _db.pref('profile_photo');
     profilePhoto.value = photo == null || photo.isEmpty ? null : photo;
