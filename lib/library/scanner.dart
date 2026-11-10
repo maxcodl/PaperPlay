@@ -106,8 +106,9 @@ class Scanner {
   static const _walkBatch = 50;
 
   /// Pause between steps. Telegram rate-limited a faster pace (100 ids every
-  /// 2 seconds), so this starts gentle and doubles after every rate limit.
-  Duration _walkPause = const Duration(seconds: 3);
+  /// 2 seconds), so this grows 1.5x after every rate limit and shrinks 15% per clean step.
+  static const _minWalkPause = Duration(seconds: 3);
+  Duration _walkPause = _minWalkPause;
   static const _maxWalkPause = Duration(minutes: 1);
 
   /// Empty batches in a row, past the known end, that mean the walk is done.
@@ -249,10 +250,15 @@ class Scanner {
             'message_ids': idsFrom(next, _walkBatch),
           }),
           onRateLimit: () {
-            final doubled = _walkPause * 2;
-            _walkPause = doubled > _maxWalkPause ? _maxWalkPause : doubled;
+            final slower = _walkPause * 1.5;
+            _walkPause = slower > _maxWalkPause ? _maxWalkPause : slower;
           },
         );
+        // Recovers after clean steps, so one rate limit doesn't slow the rest of the walk.
+        if (_walkPause > _minWalkPause) {
+          final faster = _walkPause * 0.85;
+          _walkPause = faster < _minWalkPause ? _minWalkPause : faster;
+        }
         final messages = (page['messages'] as List).cast<Json?>().whereType<Json>().toList();
         // One write per step, so the song list grows in steps, not per song.
         await _db.transaction(() async {

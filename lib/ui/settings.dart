@@ -589,7 +589,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Every settings group. Each opens as its own page.
+  final _rateBefore = <Work, int>{};
+
+  /// Above this many a minute, saving asks first.
+  static const _warnRate = 60;
+
   Widget _rateSlider(BuildContext context, Work w) => ValueListenableBuilder(
         valueListenable: rates[w]!,
         builder: (context, perMinute, _) => Padding(
@@ -612,8 +616,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 divisions: maxRate - minRate,
                 value: perMinute.toDouble(),
                 label: '$perMinute',
+                onChangeStart: (_) => _rateBefore[w] = perMinute,
                 onChanged: (v) => rates[w]!.value = v.round(),
-                onChangeEnd: (v) => setRate(app.db, w, v.round()),
+                onChangeEnd: (v) async {
+                  final before = _rateBefore[w] ?? w.defaultRate;
+                  if (v.round() > _warnRate && v.round() > before) {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (c) => AlertDialog(
+                        title: const Text('Telegram may rate limit you'),
+                        content: Text(
+                          '${v.round()} a minute is far above what Telegram usually allows. It can make the bot '
+                          'wait minutes or hours (sometimes longer), and everything using it stalls meanwhile. '
+                          'Nothing is lost, but it can end up slower than a lower setting. Use at your own risk.',
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save anyway')),
+                        ],
+                      ),
+                    );
+                    if (ok != true) {
+                      rates[w]!.value = before;
+                      return;
+                    }
+                  }
+                  await setRate(app.db, w, v.round());
+                },
               ),
             ],
           ),

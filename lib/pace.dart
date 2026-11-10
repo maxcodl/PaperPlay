@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'library/db.dart';
 
-/// Background work whose speed can be set, each as how many per minute (1-500).
+/// Background work whose speed can be set, each as how many per minute (1-1200).
 /// Faster finishes sooner but makes Telegram more likely to slow the bot down for a
 /// while. Per device.
 enum Work {
@@ -20,7 +20,7 @@ enum Work {
   String get _key => 'rate_$name';
 }
 
-const minRate = 1, maxRate = 500;
+const minRate = 1, maxRate = 1200;
 
 final rates = {for (final w in Work.values) w: ValueNotifier(w.defaultRate)};
 
