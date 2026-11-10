@@ -1,0 +1,138 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.41.6'
+
+jobs:
+  android:
+    name: Android (arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # With the four secrets set, the APK is signed with your own key, so it can update an
+      # installed copy. Without them it is signed with the debug key, which installs fine but
+      # can't replace an app signed with another key.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "keystore.path=$RUNNER_TEMP/release.jks"
+              echo "keystore.password=$KEYSTORE_PASSWORD"
+              echo "key.alias=$KEY_ALIAS"
+              echo "key.password=$KEY_PASSWORD"
+            } > "$RUNNER_TEMP/signing.properties"
+            echo "signingFile=$RUNNER_TEMP/signing.properties" > android/key.properties
+            echo "Signing with the release key"
+          else
+            echo "No signing secrets: using the debug key"
+          fi
+
+      - run: flutter pub get
+
+      - run: flutter analyze --no-fatal-infos
+
+      # Reported, but a failing test doesn't stop the build from being made.
+      - run: flutter test
+        continue-on-error: true
+
+      # Only arm64: the bundled TDLib library is arm64.
+      - name: Build the APK
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64 --split-debug-info=build/symbols
+
+      - name: Name the files
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed -E 's/version:\s*([^+ ]+).*/\1/')
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "dist/PaperPlay-$version-android-arm64.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Needed to read crash stack traces from this build.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-symbols
+          path: build/symbols
+          retention-days: 30
+
+  windows:
+    name: Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter build windows --release
+
+      - name: Installer and portable zip
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+\s]+)').Matches[0].Groups[1].Value
+          New-Item -ItemType Directory -Force dist | Out-Null
+          ./tool/build_windows_installer.ps1 -OutputDir "$PWD/dist"
+          Rename-Item "dist/PaperPlay-Setup.exe" "PaperPlay-$version-windows-x64-setup.exe"
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/PaperPlay-$version-windows-x64-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '{android-apk,windows}'
+          merge-multiple: true
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
