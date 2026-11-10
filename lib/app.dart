@@ -503,6 +503,47 @@ final class Services {
     }
   }
 
+  /// Which of [posts] Telegram says no longer exist, asked 100 at a time. Only a clear answer
+  /// counts: a batch that couldn't be answered (offline, rate limit) names nothing.
+  Future<Set<(int, int)>> missingPosts(List<(int, int)> posts) async {
+    final byChat = <int, List<int>>{};
+    for (final p in posts) {
+      (byChat[p.$1] ??= []).add(p.$2);
+    }
+    final gone = <(int, int)>{};
+    for (final e in byChat.entries) {
+      for (var i = 0; i < e.value.length; i += 100) {
+        final ids = e.value.sublist(i, min(i + 100, e.value.length));
+        try {
+          final r = await td.call({'@type': 'getMessages', 'chat_id': e.key, 'message_ids': ids}).timeout(const Duration(seconds: 30));
+          final found = r['messages'] as List;
+          if (found.length != ids.length) continue;
+          for (var k = 0; k < ids.length; k++) {
+            if (found[k] == null) gone.add((e.key, ids[k]));
+          }
+        } on TdError {
+          // Not answered: nothing is concluded.
+        } on TimeoutException {
+          // Offline.
+        }
+      }
+    }
+    return gone;
+  }
+
+  /// Drops posts Telegram no longer has from the library, so they stop showing as repeats.
+  Future<int> dropGonePosts(Iterable<(int, int)> posts) async {
+    final gone = await missingPosts(posts.toList());
+    for (final p in gone) {
+      await db.removePost(p.$1, p.$2);
+    }
+    if (gone.isNotEmpty) {
+      logEvent('delete', '${gone.length} listed post${gone.length == 1 ? ' was' : 's were'} already gone from Telegram and left the library');
+      db.announceChange();
+    }
+    return gone.length;
+  }
+
   /// True if the post exists, false if Telegram says it doesn't, null if it couldn't be asked.
   Future<bool?> _postState(int chat, int message) async {
     for (var tries = 0; tries < 4; tries++) {
@@ -552,9 +593,13 @@ final class Services {
           ..status = DeleteStatus.failed
           ..error = "Couldn't check the post to keep (Telegram is busy). Nothing was deleted; try again.";
       } else if (!alive.contains((e.$2.chatId, e.$2.messageId))) {
+        // The copy meant to stay no longer exists, so this one is now the only one: it stays,
+        // and the dead post leaves the library so the song stops showing as a repeat.
+        await db.removePost(e.$2.chatId, e.$2.messageId);
+        logEvent('delete', 'The post to keep was already gone from Telegram; the other copy stays');
         e.$3
-          ..status = DeleteStatus.failed
-          ..error = 'The post to keep is gone, so nothing was deleted.';
+          ..status = DeleteStatus.skipped
+          ..error = 'The other copy was already gone, so this one stays';
       } else {
         ok.add(e);
       }

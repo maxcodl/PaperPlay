@@ -1,6 +1,6 @@
 import 'db.dart';
 
-enum DeleteStatus { queued, deleting, done, failed }
+enum DeleteStatus { queued, deleting, done, failed, skipped }
 
 /// One song in a bulk delete, kept so the Tasks page can show how far it got.
 class DeleteJob {

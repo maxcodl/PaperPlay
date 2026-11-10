@@ -418,6 +418,14 @@ class SongList extends StatefulWidget {
 class _SongListState extends State<SongList>
     with AutomaticKeepAliveClientMixin {
   final _scroll = ScrollController();
+  final _searchField = TextEditingController();
+  var _query = '';
+
+  /// Songs whose title, artist, album or genre hold every word typed, in any order.
+  bool _matches(Song s, List<String> words) {
+    final text = '${s.title} ${s.artist} ${s.album} ${s.genre ?? ''}'.toLowerCase();
+    return words.every(text.contains);
+  }
 
   /// Rows only animate in on first show, not each time one scrolls into view.
   var _entering = true;
@@ -436,6 +444,7 @@ class _SongListState extends State<SongList>
   @override
   void dispose() {
     _scroll.dispose();
+    _searchField.dispose();
     // Leaving a list leaves picking, so other lists don't show it.
     if (selection.value.isNotEmpty) selection.value = const {};
     super.dispose();
@@ -444,10 +453,12 @@ class _SongListState extends State<SongList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final songs = widget.sortable
+    final base = widget.sortable
         ? sortSongs(oneVersionEach(widget.songs, app.mainChat.value), _sort.value, _reverse.value)
         : widget.songs;
-    if (songs.isEmpty && widget.header == null) {
+    final words = _query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final songs = words.isEmpty ? base : [for (final s in base) if (_matches(s, words)) s];
+    if (base.isEmpty && widget.header == null) {
       return const Center(
         child: Text('No songs yet. They appear here as they sync.'),
       );
@@ -477,6 +488,43 @@ class _SongListState extends State<SongList>
         cacheExtent: 600,
         slivers: [
           if (widget.header != null) SliverToBoxAdapter(child: widget.header),
+          // Only in lists the person sorts, which are the whole library: searching a playlist
+          // would hide its own order.
+          if (widget.sortable)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: TextField(
+                  controller: _searchField,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: InputDecoration(
+                    hintText: 'Search songs, artists, albums',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _searchField.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                    filled: true,
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                  ),
+                ),
+              ),
+            ),
+          if (songs.isEmpty && base.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(child: Text('No songs match "${_query.trim()}".')),
+              ),
+            ),
           if (songs.isNotEmpty)
             SliverToBoxAdapter(child: PlayRow(songs: songs)),
           if (songs.isNotEmpty && widget.sortable)

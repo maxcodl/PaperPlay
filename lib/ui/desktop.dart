@@ -243,6 +243,11 @@ class _Sidebar extends StatelessWidget {
                 );
               },
             ),
+            _SideItem(
+              icon: Icons.upload_rounded,
+              label: 'Upload',
+              onTap: () => onOpen(const UploadsScreen()),
+            ),
             const _SideHeading('Your library'),
             _SideItem(
               icon: Icons.music_note_rounded,

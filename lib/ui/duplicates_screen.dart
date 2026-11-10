@@ -41,7 +41,22 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
     final names = app.taste.value.topicNames;
     final main = app.mainChat.value;
     final canDelete = main != null && await app.canDeleteIn(main);
-    final groups = main == null ? const <DuplicateGroup>[] : findDuplicates(songs, copies, onlyChat: main);
+    var groups = main == null ? const <DuplicateGroup>[] : findDuplicates(songs, copies, onlyChat: main);
+    // A post Telegram no longer has would be listed as a repeat forever, and its copies couldn't
+    // be deleted. Ask once, drop what is gone, and list again.
+    if (main != null && groups.isNotEmpty) {
+      final dropped = await app.dropGonePosts([
+        for (final g in groups)
+          for (final p in [g.keep, ...g.others]) (p.chatId, p.messageId),
+      ]);
+      if (dropped > 0) {
+        groups = findDuplicates(
+          await app.db.select(app.db.songs).get(),
+          await app.db.select(app.db.postCopies).get(),
+          onlyChat: main,
+        );
+      }
+    }
     if (!mounted) return;
     setState(() {
       _groups = groups;
@@ -55,6 +70,16 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
   }
 
   (int, int) _keyOf(DuplicatePost p) => (p.chatId, p.messageId);
+
+  /// The delete job for [p], if it was sent for deletion: its state shows on the row at once.
+  DeleteJob? _jobOf(DuplicatePost p) =>
+      app.deletions.value.where((j) => j.isDuplicate && j.postChat == p.chatId && j.postMessage == p.messageId).lastOrNull;
+
+  /// Being deleted right now: not to be ticked again until it has finished.
+  bool _busy(DuplicatePost p) {
+    final s = _jobOf(p)?.status;
+    return s == DeleteStatus.queued || s == DeleteStatus.deleting;
+  }
 
   bool _isTicked(DuplicatePost p) => _ticked.contains(_keyOf(p));
 
@@ -83,7 +108,8 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
         pairs.add((post, keep));
       }
     }
-    // Runs in the app, not here: leaving the page doesn't stop it, and Tasks shows it.
+    // Runs in the app, not here: leaving the page doesn't stop it, and Tasks shows it. The rows
+    // show "Waiting to delete" straight away, since the jobs are listed before anything is sent.
     app.deleteDuplicates(pairs);
     setState(_ticked.clear);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +125,7 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
   void _onDeletions() {
     final jobs = app.deletions.value.where((j) => j.isDuplicate).toList();
     final waiting = jobs.where((j) => j.status == DeleteStatus.queued || j.status == DeleteStatus.deleting).length;
-    final done = jobs.where((j) => j.status == DeleteStatus.done).length;
+    final done = jobs.where((j) => j.status == DeleteStatus.done || j.status == DeleteStatus.skipped).length;
     final failed = jobs.where((j) => j.status == DeleteStatus.failed).length;
     if (!mounted) return;
     setState(() => _progress = waiting == 0 ? null : 'Deleting ${done + failed + 1} of ${jobs.length}');
@@ -114,7 +140,7 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
     if (waiting > 0) _reported = false;
     if (done != _doneSeen || waiting == 0) {
       _doneSeen = done;
-      _reload ??= Timer(const Duration(seconds: 2), () {
+      _reload ??= Timer(const Duration(milliseconds: 800), () {
         _reload = null;
         if (mounted) unawaited(_load());
       });
@@ -143,7 +169,16 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
       formatBytes(post.size),
       '${posted.day}/${posted.month}/${posted.year}',
     ].join(' · ');
-    final fate = ticked
+    final job = _jobOf(post);
+    final fate = job != null
+        ? switch (job.status) {
+            DeleteStatus.queued => 'Waiting to delete',
+            DeleteStatus.deleting => 'Deleting…',
+            DeleteStatus.done => 'Deleted',
+            DeleteStatus.skipped => job.error ?? 'Stays',
+            DeleteStatus.failed => 'Not deleted: ${job.error ?? 'failed'}',
+          }
+        : ticked
         ? 'Will be deleted'
         : isLast
             ? 'Stays: a song always keeps one post'
@@ -154,12 +189,19 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
       controlAffinity: ListTileControlAffinity.leading,
       secondary: known == null ? null : QualityGlyph(songTier(known), size: 20, color: colors.onSurfaceVariant),
       value: ticked,
-      enabled: _canDelete == true && _progress == null && !isLast,
+      enabled: _canDelete == true && _progress == null && !isLast && !_busy(post),
       title: Text(where, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(fate, style: TextStyle(color: ticked ? colors.error : colors.primary)),
+          Row(children: [
+            if (job != null && (job.status == DeleteStatus.queued || job.status == DeleteStatus.deleting))
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            Flexible(child: Text(fate, style: TextStyle(color: ticked || job?.status == DeleteStatus.failed ? colors.error : colors.primary))),
+          ]),
           if (post.fileName.isNotEmpty) Text(post.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -178,6 +220,17 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
           for (final o in g.others) _post(g, o),
         ],
       );
+
+  /// Ticks every post in General that isn't the best copy of its song. A General post that is the
+  /// best stays, so each song keeps its highest quality file.
+  void _tickGeneral(List<DuplicateGroup> groups) => setState(() {
+        for (final g in groups) {
+          for (final p in [g.keep, ...g.others]) {
+            final inGeneral = p.topicId == null || p.topicId == generalTopicId;
+            if (inGeneral && p != g.keep && !_busy(p)) _ticked.add(_keyOf(p));
+          }
+        }
+      });
 
   void _tickExtras(List<DuplicateGroup> groups) => setState(() {
         for (final g in groups) {
@@ -267,6 +320,9 @@ class _DuplicatesScreenState extends State<DuplicatesScreen> {
                             title: Text('The bot can\'t delete here. Make it an admin with the "Delete messages" right.'),
                           ),
                         ListTile(
+                          trailing: _canDelete == true && _progress == null
+                              ? TextButton(onPressed: () => _tickGeneral(groups), child: const Text('Tick General'))
+                              : null,
                           title: Text('${groups.length} song${groups.length == 1 ? ' is' : 's are'} posted more than once in your main chat'),
                           subtitle: const Text(
                             'Other channels aren\'t touched. Each song below lists its posts. Tick the ones to '

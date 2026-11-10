@@ -271,6 +271,7 @@ class TaskCenter {
             DeleteStatus.deleting => ItemState.active,
             DeleteStatus.done => ItemState.done,
             DeleteStatus.failed => ItemState.failed,
+            DeleteStatus.skipped => ItemState.done,
           },
         ),
     ];
