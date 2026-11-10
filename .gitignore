@@ -52,3 +52,4 @@ app.*.map.json
 /Telegram Music Player Architecture.txt
 /android/build/
 teleplayer.iml
+third_party/**/.gradle/
