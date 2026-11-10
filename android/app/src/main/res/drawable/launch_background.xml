@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Before Android 12: the badge, drawn from a large image, in the middle of a plain page. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
+    <item android:width="160dp" android:height="160dp" android:gravity="center">
+        <bitmap android:gravity="fill" android:src="@drawable/splash_cookie" />
+    </item>
+</layer-list>

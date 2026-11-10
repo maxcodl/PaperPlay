@@ -1,0 +1,76 @@
+name: teleplayer
+description: "Unofficial music player that uses Telegram channels as storage."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  archive: ^4.6.0
+  audio_metadata_reader: ^1.8.1
+  cryptography: ^2.9.0
+  drift: ">=2.30.0 <2.35.0"
+  dynamic_color: 1.8.1 # 1.9.0's Gradle script doesn't compile in this project.
+  file_picker: ^13.3.2
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  handy_tdlib_next: ^2.3.16
+  http: ^1.6.0
+  icon_button_m3e: ^0.2.1
+  just_audio: ^0.10.6
+  just_audio_media_kit: ^2.1.0
+  media_kit: ^1.2.6
+  loading_indicator_m3e: ^0.1.1
+  m3e_design: ^0.2.1
+  material_new_shapes: ^1.0.0
+  media_kit_libs_windows_audio: ^1.0.9
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  rxdart: ^0.28.0
+  url_launcher: ^6.3.3
+  window_manager: ^0.5.2
+  tray_manager: ^0.5.3
+  image: ^4.12.0
+  material_color_utilities: ^0.13.0
+  desktop_drop: 0.6.1
+  ffi: ^2.2.0
+  audio_service: ^0.18.19
+
+dependency_overrides:
+  # A copy with one hook added, to choose sound devices. See third_party/README.md.
+  just_audio_media_kit:
+    path: third_party/just_audio_media_kit
+  # The same package with its Android libtdjson.so replaced by TDLib 1.8.70 (arm64 only).
+  # See third_party/README.md.
+  handy_tdlib_next:
+    path: third_party/handy_tdlib_next
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.34.0
+  build_runner: ^2.15.1
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/tray.ico
+  shaders:
+    - shaders/liquid_glass.frag
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon/icon.png
+  min_sdk_android: 24
+  adaptive_icon_background: assets/icon/background.png
+  adaptive_icon_foreground: assets/icon/foreground.png
+  adaptive_icon_monochrome: assets/icon/monochrome.png
