@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'export_list_screen.dart';
 
 import '../app.dart';
 import '../library/db.dart';
@@ -342,7 +343,23 @@ class _MissingBanner extends StatelessWidget {
             child: Column(
               children: [
                 ListTile(
-                  title: Row(children: [Flexible(child: Text('${tracks.length} not in your library')), const SizedBox(width: 4), InfoText("They get added here once a matching song shows up in a channel. Tap one to open it in Spotify.")]),
+                  title: Row(children: [Flexible(child: Text('${tracks.length} not in your library')), const SizedBox(width: 4), InfoText("They get added here once a matching song shows up in a channel. Tap one to open it in Spotify. Find links makes a temporary list with Spotify and Apple Music links for all of them, to open, copy or save.")]),
+                  trailing: PopupMenuButton<String>(
+                    tooltip: 'Export',
+                    icon: const Icon(Icons.ios_share_rounded),
+                    onSelected: (v) {
+                      Navigator.pop(sheet);
+                      if (v == 'find') {
+                        exportMissingAsList(context, playlist.name, tracks);
+                      } else {
+                        pushPage(context, const ExportListsScreen());
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'find', child: Text('Find links as a temporary list')),
+                      PopupMenuItem(value: 'lists', child: Text('Temporary lists')),
+                    ],
+                  ),
                 ),
                 Expanded(
                   child: FutureBuilder<Map<String, List<Song>>>(

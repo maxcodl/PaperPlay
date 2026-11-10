@@ -407,6 +407,7 @@ class AppDb extends _$AppDb {
     'file_existing',
     'upload_ask',
     'keep_running',
+    'export_lists',
   ];
 
   static const defaultCacheLimit = 2 * 1024 * 1024 * 1024;
