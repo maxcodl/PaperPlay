@@ -889,7 +889,6 @@ final class Services {
     sound.onNativePlayer = player.equalizer.attachMpv;
     await player.loadNormalization();
     await player.equalizer.load();
-    await player.restoreSession();
     unawaited(listenbrainz.flush());
     player.countPlays = () => taste.value.learnFromPlays;
     enricher.moodLookupsAllowed = () => taste.value.lookups;
@@ -914,6 +913,8 @@ final class Services {
       libraryReady.value = true;
       unawaited(_onStarted(chats));
     }
+    // After Telegram is up, and not awaited: a last song that has to be downloaded must not hold up the first screen.
+    unawaited(player.restoreSession());
     // A saved device likely has this info already: let it merge first, so lookups only fill gaps.
     unawaited(() async {
       final saved = await db.pref('lan_addresses');
