@@ -2,6 +2,13 @@
 
 All notable changes to PaperPlay are listed here, newest first. Each stable release adds its section automatically.
 
+## [1.23.1] - 2026-11-26
+
+### Other changes
+- Revert "A post another device found gone from Telegram leaves this library too" ([`5e98111`](https://github.com/maxcodl/PaperPlay/commit/5e9811161bd5f971c76f72ec4fe1486960cdfe10))
+
+**Full changes:** [v1.23.0...v1.23.1](https://github.com/maxcodl/PaperPlay/compare/v1.23.0...v1.23.1)
+
 ## [1.23.0] - 2026-11-26
 
 ### Added
