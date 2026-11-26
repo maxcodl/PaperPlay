@@ -35,6 +35,10 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        // The graphics engine of this machine, so tests can build shapes and paths.
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+        }
     }
 }
 

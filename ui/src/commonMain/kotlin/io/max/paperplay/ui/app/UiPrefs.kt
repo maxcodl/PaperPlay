@@ -382,11 +382,11 @@ val LocalUiPrefs = staticCompositionLocalOf<UiPrefs?> { null }
 @Composable
 fun glassLook(group: LookGroup): Boolean = LocalUiPrefs.current?.look(group) == Look.Glass
 
-/** Scaled rounded corner shape based on the unified corner radius preference setting. */
+/** The corner shape of every part that follows the corner settings, scaled by its slider: continuous (iPhone-like) corners. */
 @Composable
-fun appShape(base: Dp, area: CornerArea = CornerArea.Cards): RoundedCornerShape {
+fun appShape(base: Dp, area: CornerArea = CornerArea.Cards): androidx.compose.foundation.shape.CornerBasedShape {
     val scale = LocalUiPrefs.current?.cornerScale(area) ?: 1f
-    return remember(base, scale) { RoundedCornerShape(base * scale) }
+    return remember(base, scale) { io.max.paperplay.ui.theme.ContinuousCornerShape(base * scale) }
 }
 
 private val rimColor = Color.White.copy(alpha = 0.18f)
