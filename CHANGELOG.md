@@ -2,6 +2,21 @@
 
 All notable changes to PaperPlay are listed here, newest first. Each stable release adds its section automatically.
 
+## [1.23.2] - 2026-11-26
+
+### Other changes
+- Continuous corners like iOS for every part that follows the corner settings ([`9b95b5a`](https://github.com/maxcodl/PaperPlay/commit/9b95b5a31732fc5094daa0f228f9a7ce682ee1f2))
+- Tray menu ends above the clicked icon, also with a taskbar that hides itself ([`c756707`](https://github.com/maxcodl/PaperPlay/commit/c756707069bbd5bdbd001fe35d3d39bf8a4a0ca8))
+- Tray menu opens above the taskbar ([`30c2cba`](https://github.com/maxcodl/PaperPlay/commit/30c2cbaf874d8818d67d06c981a57b5ea2f397b1))
+- Tray menu: no empty space below Quit ([`8d6e99a`](https://github.com/maxcodl/PaperPlay/commit/8d6e99a43f684cae5847b5e896c162be0881cb08))
+- PC profile uses the new profile page, in two columns on a wide window ([`273f6c4`](https://github.com/maxcodl/PaperPlay/commit/273f6c4361f2e8768f17db79d66c3cc693436129))
+- PC sidebar: no scrollbar over the icons ([`6375b7d`](https://github.com/maxcodl/PaperPlay/commit/6375b7d8c942afcfb64acf2823840b9b2bdb962e))
+
+### Maintenance
+- 26 Nov work, and songs are never removed for another device's gone list ([`ea436e3`](https://github.com/maxcodl/PaperPlay/commit/ea436e37e71459fe455c0470183542e1e014f000))
+
+**Full changes:** [v1.23.1...v1.23.2](https://github.com/maxcodl/PaperPlay/compare/v1.23.1...v1.23.2)
+
 ## [1.23.1] - 2026-11-26
 
 ### Other changes
