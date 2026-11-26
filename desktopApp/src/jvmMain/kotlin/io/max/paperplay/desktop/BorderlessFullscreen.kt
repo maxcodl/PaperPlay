@@ -34,6 +34,7 @@ internal object BorderlessFullscreen {
         fun MonitorFromWindow(hwnd: Pointer, flags: Int): Pointer?
         fun GetMonitorInfoW(monitor: Pointer, info: MonitorInfo): Boolean
         fun SetWindowPos(hwnd: Pointer, after: Pointer?, x: Int, y: Int, cx: Int, cy: Int, flags: Int): Boolean
+        fun SystemParametersInfoW(action: Int, param: Int, rect: Rect, winIni: Int): Boolean
     }
 
     private val user32: User32? = runCatching {
@@ -41,6 +42,19 @@ internal object BorderlessFullscreen {
     }.getOrNull()
 
     val supported get() = user32 != null
+
+    /**
+     * The bottom of the main screen's free area (above the taskbar), in [scale]d screen units, or null where Windows cannot say.
+     * Java's own screen insets came back as 0 with the Windows 11 taskbar, so a menu placed by them went under it.
+     */
+    fun workAreaBottom(scale: Double): Int? {
+        val api = user32 ?: return null
+        val r = Rect()
+        if (!api.SystemParametersInfoW(SPI_GETWORKAREA, 0, r, 0)) return null
+        return (r.bottom / scale).toInt()
+    }
+
+    private const val SPI_GETWORKAREA = 0x0030
 
     private var savedStyle = 0
     private var saved: Rect? = null

@@ -347,8 +347,9 @@ fun main(args: Array<String>) {
             val insets = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(gc)
             val w = io.max.paperplay.ui.app.TrayMenuWidth.value.toInt(); val h = io.max.paperplay.ui.app.TrayMenuHeight.value.toInt()
             val x = (at.x - w / 2).coerceIn(b.x, maxOf(b.x, b.x + b.width - w))
-            // Taskbar at the bottom: sit just above it; otherwise start at the click.
-            val y = if (at.y > b.y + b.height / 2) b.y + b.height - insets.bottom - h else at.y
+            // Taskbar at the bottom: sit just above it; otherwise start at the click. Windows is asked where the taskbar starts.
+            val bottom = minOf(b.y + b.height - insets.bottom, BorderlessFullscreen.workAreaBottom(gc.defaultTransform.scaleY) ?: Int.MAX_VALUE)
+            val y = if (at.y > b.y + b.height / 2) bottom - h - 8 else at.y
             androidx.compose.runtime.key(at) {
                 androidx.compose.ui.window.DialogWindow(
                     onCloseRequest = { trayMenuAt = null },
