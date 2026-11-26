@@ -245,6 +245,7 @@ fun Sidebar(
     DesktopScrollHost(
         sidebarScroll,
         modifier.partSurface(LookGroup.Nav, scheme.surfaceContainerLow, barShape),
+        showScrollbar = false,
     ) { scrollMod ->
         LazyColumn(scrollMod.padding(vertical = 8.dp), state = sidebarScroll) {
             item {

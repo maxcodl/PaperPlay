@@ -427,6 +427,8 @@ private fun Modifier.desktopSmoothWheelScrollImpl(
 fun DesktopScrollHost(
     state: LazyListState,
     modifier: Modifier = Modifier,
+    /** False keeps the smooth wheel but draws no bar: for narrow strips such as the sidebar, where the bar sat over the icons. */
+    showScrollbar: Boolean = true,
     content: @Composable (Modifier) -> Unit,
 ) {
     if (isPhone) {
@@ -472,7 +474,7 @@ fun DesktopScrollHost(
                 },
             ),
         )
-        if (isScrollable) {
+        if (isScrollable && showScrollbar) {
             val metrics by remember {
                 derivedStateOf {
                     val info = state.layoutInfo
