@@ -347,8 +347,9 @@ fun main(args: Array<String>) {
             val insets = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(gc)
             val w = io.max.paperplay.ui.app.TrayMenuWidth.value.toInt(); val h = io.max.paperplay.ui.app.TrayMenuHeight.value.toInt()
             val x = (at.x - w / 2).coerceIn(b.x, maxOf(b.x, b.x + b.width - w))
-            // Taskbar at the bottom: sit just above it; otherwise start at the click. Windows is asked where the taskbar starts.
-            val bottom = minOf(b.y + b.height - insets.bottom, BorderlessFullscreen.workAreaBottom(gc.defaultTransform.scaleY) ?: Int.MAX_VALUE)
+            // Taskbar at the bottom: the menu ends above the tray icon that was clicked (the icon sits mid-taskbar, so 24 below
+            // the taskbar's top), and above the free area when Windows reports one. A taskbar that hides itself reserves none.
+            val bottom = minOf(b.y + b.height - insets.bottom, BorderlessFullscreen.workAreaBottom(gc.defaultTransform.scaleY) ?: Int.MAX_VALUE, at.y - 24)
             val y = if (at.y > b.y + b.height / 2) bottom - h - 8 else at.y
             androidx.compose.runtime.key(at) {
                 androidx.compose.ui.window.DialogWindow(
