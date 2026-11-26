@@ -47,7 +47,8 @@ import io.max.paperplay.ui.theme.PaperPlayTheme
 
 /** Size of the tray menu window: the card plus a small transparent margin. Shared so the desktop entry point can place it. */
 val TrayMenuWidth = 256.dp
-val TrayMenuHeight = 352.dp
+/** The window is sized before the menu is drawn, so this is its content: padding 16, song row 56, gap 4, six items of 38, two dividers of 9. */
+val TrayMenuHeight = 322.dp
 
 /**
  * The system tray menu, drawn by the app instead of the native Windows one: the playing cover's colours, rounded card,
