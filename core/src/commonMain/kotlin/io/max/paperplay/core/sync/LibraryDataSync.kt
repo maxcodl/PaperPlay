@@ -261,14 +261,6 @@ class LibraryDataSync(
                     runCatching { val r = e as JsonArray; Triple((r[0] as JsonPrimitive).content.toLong(), (r[1] as JsonPrimitive).content.toLong(), (r[2] as JsonPrimitive).content.toLong()) }.getOrNull()
                 }.filter { (it.first to it.second) !in known }
                 for ((at2, rows) in goneNow.groupBy { it.third }) store.markGonePosts(rows.map { it.first to it.second }, at2)
-                // A post the other device found gone in Telegram (a repeat it cleared, say) leaves this library too. Without this the post
-                // stayed listed here: the deletion record holds only songs deleted by hand, so this device kept showing it, also as a repeat.
-                val dead = store.libraryPostsGone()
-                if (dead.isNotEmpty()) {
-                    for ((c, m) in dead) library.repo.removePost(c, m)
-                    library.invalidate()
-                    io.max.paperplay.player.PlayLog.log("sync", "Removed ${dead.size} songs whose posts are gone from Telegram")
-                }
                 chats = JsonArray((a["chats"] as? JsonArray).orEmpty().filterNot { c -> ((c as? JsonObject)?.get("id") as? JsonPrimitive)?.longOrNull?.let(store::isGone) == true })
                 IndexFile.mergeChats(chats, store, 0, own = true, progress = false)
                 for (e in (a["copied"] as? JsonArray).orEmpty()) {

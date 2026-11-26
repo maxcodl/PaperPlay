@@ -312,10 +312,6 @@ class IndexStore(private val driver: SqlDriver) {
         touch()
     }
 
-    /** Library songs whose post is proven deleted in Telegram (both tables live in the same file). */
-    fun libraryPostsGone(): List<Pair<Long, Long>> =
-        query("SELECT s.chat_id, s.message_id FROM songs s JOIN index_gone_posts g ON g.chat_id = s.chat_id AND g.message_id = s.message_id") { it.getLong(0)!! to it.getLong(1)!! }
-
     /** The newest posts proven deleted, as (chat, message, when). */
     fun gonePosts(limit: Int = 5_000): List<Triple<Long, Long, Long>> =
         query("SELECT chat_id, message_id, at FROM index_gone_posts ORDER BY at DESC LIMIT $limit") { Triple(it.getLong(0)!!, it.getLong(1)!!, it.getLong(2)!!) }

@@ -159,19 +159,6 @@ class LibraryDataSyncTest {
         assertEquals(true, pages <= 8, "$pages pages")
     }
 
-    /** The phone cleared a repeat that was already gone from Telegram: no deletion record, only the gone post. The PC drops it too. */
-    @Test
-    fun aPostGoneFromTelegramLeavesTheOtherLibrary() = runBlocking {
-        val pc = Device("pc")
-        val phone = Device("phone")
-        for (d in listOf(pc, phone)) { d.song("a", 1); d.song("b", 2) }
-        phone.driver.execute(null, "DELETE FROM songs WHERE unique_id = 'b'", 0)
-        phone.index.markGonePosts(listOf(-1_000_000_000_001L to 2L), 9)
-        pull(pc, phone)
-        assertEquals(0L, pc.count("SELECT COUNT(*) FROM songs WHERE unique_id = 'b'"))
-        assertEquals(1L, pc.count("SELECT COUNT(*) FROM songs WHERE unique_id = 'a'"))
-    }
-
     @Test
     fun aPostDeletedOnOneDeviceStaysDeletedOnBoth() = runBlocking {
         val pc = Device("pc")
