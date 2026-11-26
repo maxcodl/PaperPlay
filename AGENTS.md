@@ -83,6 +83,7 @@ Read `README.md` and `CHECKLIST.md` before changing anything.
 
 ## Behaviour that must hold
 - No touch goes through anything: a sheet, bar or overlay takes the touches that land on it (`Modifier.blockTouchesBehind()` in `ui/.../app/BlockTouches.kt`); a list behind the player must never react.
+- A library song is never removed because another device listed its post as gone (`index_gone_posts`): those lists were wrong on 25 Nov and a sync that trusted them removed real songs (1.22.0, 1.23.0). Only the deletion record of songs deleted by hand, and this device asking Telegram, remove songs.
 - A song in a credit "A, B & C" is several artists; use `splitArtists` (core `metadata/Text.kt`) wherever artists are listed, linked or matched.
 - A cover or album match is never taken from a compilation ("Bravo Hits", "Top 100"): use `isCompilationAlbum` and `pickExternal(..., allowCompilation = false)` for covers.
 - Data that two devices both have is merged by one pure rule that gives the same answer on both sides (`remoteTagsWin`, `remoteLyricsWin`, `mergeSongData`); what was made by hand wins over what was found.

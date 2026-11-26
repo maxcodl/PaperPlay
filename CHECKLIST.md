@@ -1,6 +1,6 @@
 # PaperPlay Compose: what's done and what's left
 
-Updated 14 Nov 2026 (section 6 is the 13 Nov code audit; the 14 Nov updates at the end cover the motion work, CI, releases, the updater and the About page). Everything compiles and CI builds it; most of it has not been tried on a device, and `[x]` in section 1 was not individually re-checked)
+Updated 26 Nov 2026 (the newest notes are in the last section; section 6 is the 13 Nov code audit; the 14 Nov updates at the end cover the motion work, CI, releases, the updater and the About page). Everything compiles and CI builds it; most of it has not been tried on a device, and `[x]` in section 1 was not individually re-checked)
 
 **Marks:** `[x]` done and written, `[~]` half done, `[ ]` not done.
 "Compiles, not tried" means the Android release and desktop release built on 12 Nov (night) but the feature has not been tried on a device.
@@ -943,3 +943,25 @@ Left, in this order: 1. the owner opens the phone app (new database mode) and lo
 - [~] Pairing and network play use CPace (`d0e65f8`, test vectors of the draft): a fake device gets one guess per connection for each code the real one could accept, never all of them. Both devices need this build to pair; paired ones stay paired. Not tried on the real devices
 - [~] Basic groups, the recommender after an ended queue, cover and photo pickers, copying library-only songs after leaving the page
 - [ ] Memory while the PC window is hidden, measured again (142 MB before the backend was kept); needs the real app running
+
+## Update 2026-11-26 (Spotify matching, standby, PR #18, sync, PC polish)
+
+Releases: 1.21.4 to 1.23.1 came out today. 1.22.0 and 1.23.0 removed real songs from the library on sync (below); 1.23.1 undoes that.
+
+- [~] Spotify matching: cut-off titles match by start, artist and length; artist brackets, film credits, "Version" and accents no longer hide a song; new songs are matched 10 s after they arrive; the missing list offers library songs ("This one"); auto copy skips a song that is likely here. The owner saw "Annihilate" match
+- [~] Opening a Spotify playlist no longer waits for the matching (compared before the write, about 6 times faster on the PC). Not timed on a phone
+- [~] Music folders: system folder picker on the phone and the PC, whole drives work. Not tried on a device
+- [x] USB ring buffer: never reports more bytes than it holds while cleared (test failed 3 in 300 before, 0 in 600 after)
+- [x] CI names failed tests as annotations
+- [x] PR #18 (a friend's work: standby visualizer, motion, memory leaks, engine and USB fixes) merged with the volume fix on top
+- [~] Standby: turns the right way, also leaning back, within half a second (motion sensor); the rotation button fades and shows on or off; bars follow the volume (0 = still). The owner confirmed the direction
+- [ ] Standby on the phone while another device plays: no bars (the PR removed the seeded motion). Owner to choose: seeded motion back, or bands sent from the PC
+- [~] Linked devices: a device that another drives stops controlling it (each showed the other as playing). Not tried on two devices
+- [~] Duplicates: copies whose length was never read are found by file size (150 such songs on the phone)
+- [ ] Wrong "post is gone" entries: the phone marked about 65 existing posts as deleted during a duplicate clean-up on 25 Nov (14:48 to 14:51). Cause not found. Do not use the duplicate deleter until it is
+- [x] Reverted: syncing those entries removed real songs (1.22.0, 1.23.0); 1.23.1 undoes it. A PC scan brings the songs back
+- [ ] Phone scan with the account: "read no posts from the main chat"
+- [~] Log: what downloaded each minute and why, and where the song storage is (for a friend whose app went past its 1 GB cache limit and downloads while idle). Test APK built; his log not received yet
+- [~] PC: new profile page in two columns, no sidebar scrollbar, tray menu without the empty space and above the taskbar. Installed on the owner's PC
+- [ ] PC corners: continuous (iOS) corners behind `appShape`; the owner saw no change. To look into
+- [ ] Song info sources: SoundCloud needs a paid Artist Pro plan and a secret (not added); waiting for the owner's choice (Last.fm with a free key, Spotify, JioSaavn, Discogs)
