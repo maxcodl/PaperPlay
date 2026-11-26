@@ -95,129 +95,24 @@ fun ProfileScreen(
     recents: List<io.max.paperplay.ui.state.SongUi> = emptyList(),
     onPlay: (List<io.max.paperplay.ui.state.SongUi>, Int) -> Unit = { _, _ -> },
 ) {
-    if (io.max.paperplay.ui.isPhone) {
-        AndroidProfileScreen(
-            songs = songs,
-            favorites = favorites,
-            playlists = playlists,
-            conn = conn,
-            prefs = prefs,
-            mainChatTitle = mainChatTitle,
-            onSettings = onSettings,
-            onTasks = onTasks,
-            onLibraryTab = onLibraryTab,
-            bottomPadding = bottomPadding,
-            modifier = modifier,
-            scan = scan,
-            runningTasks = runningTasks,
-            updates = updates,
-            backend = backend,
-        )
-        return
-    }
-    var stats by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ProfileStats?>(null) }
-    androidx.compose.runtime.LaunchedEffect(backend) {
-        // Also after a sync brought another device's listening; at most every 2 s while the library changes.
-        backend?.services?.library?.changes?.collect {
-            stats = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { backend.profileStats() }
-            kotlinx.coroutines.delay(2_000)
-        }
-    }
-    LazyColumn(modifier, contentPadding = PaddingValues(bottom = bottomPadding + 32.dp)) {
-        item {
-            TopBar("Profile") { IconButton({ onSettings(null) }) { AppIcon(Icons.Rounded.Settings, "Settings") } }
-        }
-        item {
-            Column(
-                Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    .partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, appShape(36.dp)),
-            ) {
-                Column(
-                    Modifier.fillMaxWidth().clickable { onSettings("profile") }.padding(top = 28.dp, bottom = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Avatar(prefs.profilePhoto, prefs.profileName, 112.dp)
-                    Text(prefs.profileName, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.headlineMedium)
-                }
-                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Stat(Icons.Rounded.MusicNote, songs, "Songs", Modifier.weight(1f)) { onLibraryTab(0) }
-                    StatDivider()
-                    Stat(Icons.Rounded.Favorite, favorites, "Favorites", Modifier.weight(1f)) { onLibraryTab(4) }
-                    StatDivider()
-                    Stat(Icons.Rounded.PlaylistPlay, playlists, "Playlists", Modifier.weight(1f)) { onLibraryTab(3) }
-                }
-            }
-        }
-        if (backend != null) item { ListeningSection(stats, recents, prefs, onPlay) { onSettings("stats") } }
-        item {
-            ProfileSection("library", "Library", Icons.Rounded.LibraryMusic, prefs) {
-                NavRow(if (conn.chats.size == 1) "1 channel" else "${conn.chats.size} channels", icon = Icons.Rounded.Forum, subtitle = mainChatTitle?.let { "Main chat: $it" } ?: "No chat added yet") {
-                    onSettings("channels")
-                }
-                NavRow("Scan library", icon = Icons.Rounded.Sync, subtitle = "Read the chats with the bots and account you pick") { onSettings("repair") }
-                NavRow("Tasks", icon = Icons.Rounded.TaskAlt, subtitle = scan?.value?.text ?: if (runningTasks > 0) "$runningTasks running" else "Nothing running", onClick = onTasks)
-                NavRow("Upload songs", icon = Icons.Rounded.Upload, subtitle = "Send songs or a folder to a chat, with speed and queue") { onSettings("uploadhub") }
-                NavRow("Duplicates", icon = Icons.Rounded.ContentCopy, subtitle = "Find repeated songs and remove the extras") { onSettings("dupes") }
-                NavRow("Song info left", icon = Icons.Rounded.Rule, subtitle = "See which songs still lack info or a cover") { onSettings("missing") }
-            }
-        }
-        item {
-            ProfileSection("devices", "Devices and storage", Icons.Rounded.Devices, prefs) {
-                NavRow("Connection", icon = Icons.Rounded.SettingsEthernet, subtitle = "Telegram status, devices on this network, pairing") {
-                    onSettings("conn")
-                }
-                NavRow("Network play", icon = Icons.Rounded.Devices, subtitle = "Listen together with people on the same network") { onSettings("netplay") }
-                NavRow("Cache and backup", icon = Icons.Rounded.CleaningServices, subtitle = "Manage cached songs and library backups") {
-                    onSettings("storage")
-                }
-            }
-        }
-        if (updates != null) item { AboutCard(updates) { onSettings("about") } }
-    }
-}
-
-/** The end of Profile: the app, its version and channel, a note when an update is waiting, and the maker's line. Tapping opens Settings > About. */
-@Composable
-private fun AboutCard(updates: io.max.paperplay.core.update.UpdateService, onOpen: () -> Unit) {
-    val state by updates.state.collectAsState()
-    val available = (state as? io.max.paperplay.core.update.UpdateState.Available)?.release?.version
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, appShape(28.dp))
-                .clickable(onClickLabel = "Open About", onClick = onOpen).padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            io.max.paperplay.ui.StaticLogo(size = 28.dp)
-            Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                Text("Paper Play", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Version ${updates.installed} · ${if (updates.prefs.beta) "Beta" else "Stable"} updates",
-                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (available != null) Text("Update $available available", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            AppIcon(Icons.Rounded.ChevronRight, null)
-        }
-        MadeBy()
-    }
-}
-
-@Composable
-private fun StatDivider() {
-    Box(Modifier.width(1.dp).height(40.dp).background(MaterialTheme.colorScheme.outlineVariant))
-}
-
-/** A count with a small icon above it and its label below; sits in the identity card, not in a box of its own. */
-@Composable
-private fun Stat(icon: ImageVector, n: Int, label: String, modifier: Modifier, onClick: () -> Unit) {
-    Column(
-        modifier.clip(appShape(20.dp)).clickable(onClick = onClick).padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        AppIcon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-        Text("$n", Modifier.padding(top = 4.dp), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    // Phone and PC share one profile page; a wide window lays it out in two columns.
+    AndroidProfileScreen(
+        songs = songs,
+        favorites = favorites,
+        playlists = playlists,
+        conn = conn,
+        prefs = prefs,
+        mainChatTitle = mainChatTitle,
+        onSettings = onSettings,
+        onTasks = onTasks,
+        onLibraryTab = onLibraryTab,
+        bottomPadding = bottomPadding,
+        modifier = modifier,
+        scan = scan,
+        runningTasks = runningTasks,
+        updates = updates,
+        backend = backend,
+    )
 }
 
 /** A card whose body folds away. It always starts collapsed; the state is not saved. */
@@ -273,12 +168,6 @@ private fun ProfileScreenPreview() {
     )
 }
 
-
-@Preview(name = "Stat", showBackground = true)
-@Composable
-private fun StatPreview() = io.max.paperplay.ui.PreviewFrame {
-    Stat(androidx.compose.material.icons.Icons.Rounded.MusicNote, 120, "Songs", Modifier, onClick = {})
-}
 
 @Preview(name = "Section", showBackground = true)
 @Composable

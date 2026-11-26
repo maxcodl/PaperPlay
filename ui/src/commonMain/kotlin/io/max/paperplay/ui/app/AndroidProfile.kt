@@ -6,6 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -184,146 +189,172 @@ internal fun AndroidProfileScreen(
     val scanText = scan?.value?.text
     val tasksSubtitle = scanText ?: if (runningTasks > 0) "$runningTasks running" else "Nothing running"
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding + 32.dp),
-        verticalArrangement = Arrangement.spacedBy(if (modern) 20.dp else 16.dp),
-    ) {
-        item(key = "profile_header", contentType = "header") {
-            ProfileHeader(modern = modern, onSettings = { onSettings(null) })
-        }
-
-        item(key = "profile_identity", contentType = "identity") {
-            val readyStats = (effectiveStatsState as? ProfileStatsState.Ready)?.stats
-            ProfileIdentityCard(
-                prefs = prefs,
-                photoOverride = if (previewOverride == UiPreviewOverride.NoAvatar) null else prefs.profilePhoto,
-                songs = songs,
-                favorites = favorites,
-                playlists = playlists,
-                topArtist = readyStats?.weekTopArtist?.let { "This week · ${it.first}" }
-                    ?: readyStats?.topArtist?.let { "Last 30 days · ${it.first}" },
-                onEditProfile = { onSettings("profile") },
-                onLibraryTab = onLibraryTab,
-                onOpenStats = { onSettings("stats") },
-                modifier = Modifier.profileStaggerIn(0),
-            )
-        }
-
-        if (backend != null) {
-            item(key = "profile_stats", contentType = "stats") {
-                when (val s = effectiveStatsState) {
-                    ProfileStatsState.Loading -> ProfileStatsSkeleton(
-                        modern = modern,
-                        modifier = Modifier.profileStaggerIn(1),
-                    )
-                    is ProfileStatsState.Error -> ProfileStatsErrorCard(
-                        message = s.message,
-                        onRetry = {
-                            uiPreviewOverride.value = UiPreviewOverride.Live
-                            retryTick++
-                        },
-                        modifier = Modifier.profileStaggerIn(1),
-                    )
-                    is ProfileStatsState.Ready -> {
-                        if (s.stats.totalMs <= 0L) {
-                            ProfileStatsEmptyCard(
-                                onStartListening = { onLibraryTab(0) },
-                                onOpenStats = { onSettings("stats") },
-                                modifier = Modifier.profileStaggerIn(1),
-                            )
-                        } else {
-                            ProfileStatTilesRow(
-                                stats = s.stats,
-                                onOpenStats = { onSettings("stats") },
-                                modifier = Modifier.profileStaggerIn(1),
-                            )
-                        }
+    val header: @Composable () -> Unit = {
+        ProfileHeader(modern = modern, onSettings = { onSettings(null) })
+    }
+    val identity: @Composable () -> Unit = {
+        val readyStats = (effectiveStatsState as? ProfileStatsState.Ready)?.stats
+        ProfileIdentityCard(
+            prefs = prefs,
+            photoOverride = if (previewOverride == UiPreviewOverride.NoAvatar) null else prefs.profilePhoto,
+            songs = songs,
+            favorites = favorites,
+            playlists = playlists,
+            topArtist = readyStats?.weekTopArtist?.let { "This week · ${it.first}" }
+                ?: readyStats?.topArtist?.let { "Last 30 days · ${it.first}" },
+            onEditProfile = { onSettings("profile") },
+            onLibraryTab = onLibraryTab,
+            onOpenStats = { onSettings("stats") },
+            modifier = Modifier.profileStaggerIn(0),
+        )
+    }
+    val statsBlock: @Composable () -> Unit = {
+            when (val s = effectiveStatsState) {
+                ProfileStatsState.Loading -> ProfileStatsSkeleton(
+                    modern = modern,
+                    modifier = Modifier.profileStaggerIn(1),
+                )
+                is ProfileStatsState.Error -> ProfileStatsErrorCard(
+                    message = s.message,
+                    onRetry = {
+                        uiPreviewOverride.value = UiPreviewOverride.Live
+                        retryTick++
+                    },
+                    modifier = Modifier.profileStaggerIn(1),
+                )
+                is ProfileStatsState.Ready -> {
+                    if (s.stats.totalMs <= 0L) {
+                        ProfileStatsEmptyCard(
+                            onStartListening = { onLibraryTab(0) },
+                            onOpenStats = { onSettings("stats") },
+                            modifier = Modifier.profileStaggerIn(1),
+                        )
+                    } else {
+                        ProfileStatTilesRow(
+                            stats = s.stats,
+                            onOpenStats = { onSettings("stats") },
+                            modifier = Modifier.profileStaggerIn(1),
+                        )
                     }
                 }
             }
-        }
-
-        item(key = "profile_quick_actions", contentType = "quick_actions") {
-            ProfileQuickActionsSection(
-                runningTasks = runningTasks,
-                hasScan = scanText != null,
-                onAccount = { onSettings("account") },
-                onTasks = onTasks,
-                onScan = { onSettings("repair") },
-                onUpload = { onSettings("uploadhub") },
-                modifier = Modifier.profileStaggerIn(2),
-            )
-        }
-
-        item(key = "profile_library_tools", contentType = "section") {
-            Column(Modifier.profileStaggerIn(3), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ProfileSectionHeader("Library & tools")
-                ProfileSurfaceCard(Modifier.padding(horizontal = 16.dp)) {
-                    ProfileIconRow(
-                        title = if (conn.chats.size == 1) "1 channel" else "${conn.chats.size} channels",
-                        subtitle = mainChatTitle?.let { "Main chat: $it" } ?: "No chat added yet",
-                        icon = Icons.Rounded.Forum,
-                        onClick = { onSettings("channels") },
-                    )
-                    ProfileRowDivider(modern)
-                    ProfileIconRow(
-                        title = "Duplicates",
-                        subtitle = "Find repeated songs and remove extras",
-                        icon = Icons.Rounded.ContentCopy,
-                        onClick = { onSettings("dupes") },
-                    )
-                    ProfileRowDivider(modern)
-                    ProfileIconRow(
-                        title = "Song info left",
-                        subtitle = "Songs still missing info or a cover",
-                        icon = Icons.Rounded.Rule,
-                        onClick = { onSettings("missing") },
-                    )
-                }
+    }
+    val quick: @Composable () -> Unit = {
+        ProfileQuickActionsSection(
+            runningTasks = runningTasks,
+            hasScan = scanText != null,
+            onAccount = { onSettings("account") },
+            onTasks = onTasks,
+            onScan = { onSettings("repair") },
+            onUpload = { onSettings("uploadhub") },
+            modifier = Modifier.profileStaggerIn(2),
+        )
+    }
+    val library: @Composable () -> Unit = {
+        Column(Modifier.profileStaggerIn(3), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ProfileSectionHeader("Library & tools")
+            ProfileSurfaceCard(Modifier.padding(horizontal = 16.dp)) {
+                ProfileIconRow(
+                    title = if (conn.chats.size == 1) "1 channel" else "${conn.chats.size} channels",
+                    subtitle = mainChatTitle?.let { "Main chat: $it" } ?: "No chat added yet",
+                    icon = Icons.Rounded.Forum,
+                    onClick = { onSettings("channels") },
+                )
+                ProfileRowDivider(modern)
+                ProfileIconRow(
+                    title = "Duplicates",
+                    subtitle = "Find repeated songs and remove extras",
+                    icon = Icons.Rounded.ContentCopy,
+                    onClick = { onSettings("dupes") },
+                )
+                ProfileRowDivider(modern)
+                ProfileIconRow(
+                    title = "Song info left",
+                    subtitle = "Songs still missing info or a cover",
+                    icon = Icons.Rounded.Rule,
+                    onClick = { onSettings("missing") },
+                )
             }
         }
-
-        item(key = "profile_devices_storage", contentType = "section") {
+    }
+    val devices: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ProfileSectionHeader("Devices & storage")
+            ProfileSurfaceCard(Modifier.padding(horizontal = 16.dp)) {
+                ProfileIconRow(
+                    title = "Connection",
+                    subtitle = "Telegram status, devices on this network, pairing",
+                    icon = Icons.Rounded.SettingsEthernet,
+                    onClick = { onSettings("conn") },
+                )
+                ProfileRowDivider(modern)
+                ProfileIconRow(
+                    title = "Network play",
+                    subtitle = "Listen together on the same network",
+                    icon = Icons.Rounded.Devices,
+                    onClick = { onSettings("netplay") },
+                )
+                ProfileRowDivider(modern)
+                ProfileIconRow(
+                    title = "Cache and backup",
+                    subtitle = "Manage cached songs and library backups",
+                    icon = Icons.Rounded.CleaningServices,
+                    onClick = { onSettings("storage") },
+                )
+            }
+        }
+    }
+    val about: @Composable () -> Unit = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ProfileSectionHeader("Devices & storage")
-                ProfileSurfaceCard(Modifier.padding(horizontal = 16.dp)) {
-                    ProfileIconRow(
-                        title = "Connection",
-                        subtitle = "Telegram status, devices on this network, pairing",
-                        icon = Icons.Rounded.SettingsEthernet,
-                        onClick = { onSettings("conn") },
-                    )
-                    ProfileRowDivider(modern)
-                    ProfileIconRow(
-                        title = "Network play",
-                        subtitle = "Listen together on the same network",
-                        icon = Icons.Rounded.Devices,
-                        onClick = { onSettings("netplay") },
-                    )
-                    ProfileRowDivider(modern)
-                    ProfileIconRow(
-                        title = "Cache and backup",
-                        subtitle = "Manage cached songs and library backups",
-                        icon = Icons.Rounded.CleaningServices,
-                        onClick = { onSettings("storage") },
-                    )
-                }
-            }
-        }
-
-        if (updates != null) {
-            item(key = "profile_about", contentType = "about") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ProfileSectionHeader("App")
-                    ProfileAboutCard(updates = updates, onOpen = { onSettings("about") })
-                    MadeBy()
-                }
-            }
-        } else {
-            item(key = "profile_made_by", contentType = "footer") {
+                ProfileSectionHeader("App")
+                updates?.let { ProfileAboutCard(updates = it, onOpen = { onSettings("about") }) }
                 MadeBy()
             }
+    }
+    val madeBy: @Composable () -> Unit = {
+            MadeBy()
+    }
+    val gap = if (modern) 20.dp else 16.dp
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        if (!io.max.paperplay.ui.isPhone && maxWidth >= 840.dp) {
+            // A wide window (the PC): the same parts in two columns, you and your listening on the left, the rest on the right.
+            Row(
+                Modifier.fillMaxSize().widthIn(max = 1280.dp).align(Alignment.TopCenter).padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = bottomPadding + 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    header()
+                    identity()
+                    if (backend != null) statsBlock()
+                    quick()
+                }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = bottomPadding + 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    // Lines the first card up with the identity card beside it.
+                    Spacer(Modifier.height(56.dp))
+                    library()
+                    devices()
+                    if (updates != null) about() else madeBy()
+                }
+            }
+        } else LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding + 32.dp),
+            verticalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            item(key = "profile_header", contentType = "header") { header() }
+            item(key = "profile_identity", contentType = "identity") { identity() }
+            if (backend != null) item(key = "profile_stats", contentType = "stats") { statsBlock() }
+            item(key = "profile_quick_actions", contentType = "quick_actions") { quick() }
+            item(key = "profile_library_tools", contentType = "section") { library() }
+            item(key = "profile_devices_storage", contentType = "section") { devices() }
+            if (updates != null) item(key = "profile_about", contentType = "about") { about() }
+            else item(key = "profile_made_by", contentType = "footer") { madeBy() }
         }
     }
 }
