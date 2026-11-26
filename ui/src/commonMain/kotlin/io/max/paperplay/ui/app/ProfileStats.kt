@@ -69,7 +69,81 @@ internal data class ProfileStats(
     val topSong: ListenTotal?,
     val personality: Personality,
     val badges: List<Badge>,
+    val totalPlays: Long = 0L,
+    val distinctSongs: Int = 0,
+    val weekTopArtist: Pair<String, Long>? = null,
 )
+
+internal data class BusiestDay(val epochDay: Long, val dateLabel: String, val ms: Long, val plays: Long)
+internal data class PeakTime(val weekday: String, val bucket: String?)
+internal data class TopGenre(val name: String, val percent: Int, val ms: Long)
+internal data class LibraryExplored(val exploredSongs: Int, val totalSongs: Int) {
+    val fraction: Float get() = if (totalSongs <= 0) 0f else (exploredSongs.toFloat() / totalSongs).coerceIn(0f, 1f)
+    val percent: Int get() = if (totalSongs <= 0) 0 else ((exploredSongs * 100.0) / totalSongs).toInt().coerceIn(0, 100)
+}
+internal data class SongMetaSnapshot(val uniqueId: String, val album: String, val genre: String?, val playedBefore: Boolean)
+internal data class ListeningInsights(
+    val currentStreak: Int,
+    val longestStreak: Int,
+    val listenedToday: Boolean,
+    val busiestDay: BusiestDay?,
+    val peakTime: PeakTime?,
+    val topGenre: TopGenre?,
+    val libraryExplored: LibraryExplored?,
+    val topArtists: List<Pair<String, Long>>,
+    val topAlbums: List<Triple<String, String, Long>>,
+)
+
+internal data class StatsSongEntry(
+    val total: ListenTotal,
+    val song: SongUi?,
+)
+
+internal data class StatsArtistEntry(
+    val artist: String,
+    val ms: Long,
+    val coverUri: String?,
+)
+
+internal data class StatsAlbumEntry(
+    val album: String,
+    val artist: String,
+    val ms: Long,
+    val coverUri: String?,
+)
+
+internal data class StatsPageData(
+    val days: Int,
+    val totalMs: Long,
+    val totalPlays: Long,
+    val distinctSongs: Int,
+    val heroSong: StatsSongEntry?,
+    val topSongs: List<StatsSongEntry>,
+    val topArtists: List<StatsArtistEntry>,
+    val topAlbums: List<StatsAlbumEntry>,
+    val insights: ListeningInsights,
+)
+
+internal fun filterEventsForSpan(
+    events: List<io.max.paperplay.core.recs.PlayEvent>,
+    days: Int,
+    nowMs: Long,
+    tzOffsetMs: Long = 0L,
+): List<io.max.paperplay.core.recs.PlayEvent> {
+    if (days <= 0) return events
+    val minDay = epochDayForMillis(nowMs, tzOffsetMs) - (days - 1)
+    return events.filter { epochDayForMillis(it.at, tzOffsetMs) >= minDay }
+}
+
+internal fun buildStatsSummaryLine(totalPlays: Long, distinctSongs: Int, totalMs: Long): String {
+    val songLabel = if (distinctSongs == 1) "1 song" else "$distinctSongs songs"
+    return if (totalPlays > 0L) {
+        val playLabel = if (totalPlays == 1L) "1 play" else "$totalPlays plays"
+        "$playLabel · $songLabel"
+    } else {
+        "${fmtCompactTime(totalMs)} · $songLabel"
+    }
+}
 
 /** Days since 1970-01-01 of a yyyy-MM-dd string; null when it is not one. */
 internal fun epochDay(day: String): Long? {
@@ -100,7 +174,53 @@ internal fun fmtTime(ms: Long): String {
     return if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
 }
 
-internal fun computeProfileStats(perDay: Map<String, Long>, month: List<ListenTotal>, all: List<ListenTotal>, today: Long): ProfileStats {
+internal fun fmtCompactTime(ms: Long): String {
+    val m = (ms / 60_000).coerceAtLeast(0L)
+    return if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
+}
+
+internal fun fmtSpokenTime(ms: Long): String {
+    val m = (ms / 60_000).coerceAtLeast(0L)
+    val h = m / 60
+    val rem = m % 60
+    return buildString {
+        if (h > 0) append(if (h == 1L) "1 hour" else "$h hours")
+        if (h > 0 && rem > 0) append(' ')
+        if (rem > 0 || h == 0L) append(if (rem == 1L) "1 minute" else "$rem minutes")
+    }
+}
+
+internal fun epochDayForMillis(epochMs: Long, tzOffsetMs: Long = 0L): Long =
+    (epochMs + tzOffsetMs).floorDiv(86_400_000L)
+
+private val WEEKDAY_NAMES = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+private val MONTH_NAMES = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+internal fun weekdayName(epochDay: Long): String =
+    WEEKDAY_NAMES[((epochDay + 3).mod(7L)).toInt()]
+
+internal fun timeOfDayBucket(hour: Int): String = when (hour.mod(24)) {
+    in 5..11 -> "Morning"
+    in 12..16 -> "Afternoon"
+    in 17..20 -> "Evening"
+    else -> "Night"
+}
+
+internal fun formatShortDate(epochDay: Long): String {
+    val parts = io.max.paperplay.core.app.dayOf(epochDay * 86_400_000L).split('-')
+    val monthIdx = (parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1
+    val dayNum = parts.getOrNull(2)?.toIntOrNull() ?: 1
+    val mon = MONTH_NAMES.getOrElse(monthIdx) { "Jan" }
+    return "$mon $dayNum"
+}
+
+internal fun computeProfileStats(
+    perDay: Map<String, Long>,
+    month: List<ListenTotal>,
+    all: List<ListenTotal>,
+    today: Long,
+    weekTotals: List<ListenTotal> = emptyList(),
+): ProfileStats {
     val days = HashMap<Long, Long>()
     for ((k, v) in perDay) epochDay(k)?.let { if (v > 0) days[it] = (days[it] ?: 0) + v }
     fun ms(d: Long) = days[d] ?: 0L
@@ -126,7 +246,11 @@ internal fun computeProfileStats(perDay: Map<String, Long>, month: List<ListenTo
     val perArtist = HashMap<String, Long>()
     for (t in month) t.artist?.let { a -> splitArtists(a).forEach { perArtist[it] = (perArtist[it] ?: 0) + t.ms } }
 
+    val weekPerArtist = HashMap<String, Long>()
+    for (t in weekTotals) t.artist?.let { a -> splitArtists(a).forEach { weekPerArtist[it] = (weekPerArtist[it] ?: 0) + t.ms } }
+
     val plays = all.sumOf { it.plays }
+    val distinctSongs = all.count { it.ms > 0 || it.plays > 0 }
     val hours = total / 3_600_000L
     return ProfileStats(
         today, current, longest, ms(today) > 0, ms(today), week.sum(), (today - 29..today).sumOf(::ms), total,
@@ -136,6 +260,144 @@ internal fun computeProfileStats(perDay: Map<String, Long>, month: List<ListenTo
             Badge("7 day streak", longest >= 7), Badge("30 day streak", longest >= 30), Badge("100 day streak", longest >= 100),
             Badge("10 hours", hours >= 10), Badge("100 hours", hours >= 100), Badge("1000 hours", hours >= 1000),
         ),
+        totalPlays = plays,
+        distinctSongs = distinctSongs,
+        weekTopArtist = weekPerArtist.maxByOrNull { it.value }?.toPair(),
+    )
+}
+
+internal fun computeListeningInsights(
+    perDayStats: Map<String, Pair<Long, Long>>,
+    totals: List<ListenTotal>,
+    events: List<io.max.paperplay.core.recs.PlayEvent>,
+    librarySongs: Collection<SongMetaSnapshot>,
+    nowMs: Long,
+    tzOffsetMs: Long = 0L,
+): ListeningInsights {
+    val today = epochDayForMillis(nowMs, tzOffsetMs)
+    val dayStats = HashMap<Long, Pair<Long, Long>>()
+    for ((k, v) in perDayStats) {
+        if (v.first <= 0L && v.second <= 0L) continue
+        val day = epochDay(k) ?: continue
+        val cur = dayStats[day]
+        dayStats[day] = ((cur?.first ?: 0L) + v.first) to ((cur?.second ?: 0L) + v.second)
+    }
+
+    val heardEvents = events.filter { it.heardMs > 0L }
+    val eventDays = HashMap<Long, Pair<Long, Long>>()
+    for (e in heardEvents) {
+        val day = epochDayForMillis(e.at, tzOffsetMs)
+        val cur = eventDays[day]
+        eventDays[day] = ((cur?.first ?: 0L) + e.heardMs) to ((cur?.second ?: 0L) + 1L)
+    }
+
+    val activeDays = (dayStats.keys + eventDays.keys).toSortedSet()
+    var currentStreak = 0
+    var d = if (today in activeDays) today else today - 1
+    while (d in activeDays) {
+        currentStreak++
+        d--
+    }
+    var longestStreak = 0
+    var run = 0
+    var prev = Long.MIN_VALUE
+    for (day in activeDays) {
+        run = if (day == prev + 1) run + 1 else 1
+        if (run > longestStreak) longestStreak = run
+        prev = day
+    }
+
+    val busiestSource = if (dayStats.isNotEmpty()) dayStats else eventDays
+    val busiestEntry = busiestSource.maxWithOrNull(
+        compareBy<Map.Entry<Long, Pair<Long, Long>>> { it.value.second }.thenBy { it.value.first }.thenBy { it.key },
+    )
+    val busiestDay = busiestEntry?.let { (day, pair) ->
+        BusiestDay(day, formatShortDate(day), pair.first, pair.second)
+    }
+
+    val peakTime = if (heardEvents.isNotEmpty()) {
+        val byWeekday = HashMap<Long, Long>()
+        val byBucket = HashMap<String, Long>()
+        for (e in heardEvents) {
+            val day = epochDayForMillis(e.at, tzOffsetMs)
+            val wd = (day + 3).mod(7L)
+            byWeekday[wd] = (byWeekday[wd] ?: 0L) + e.heardMs
+            val hour = if (e.at > 0L) ((e.at + tzOffsetMs).floorDiv(3_600_000L).mod(24L)).toInt() else e.hour
+            val b = timeOfDayBucket(hour)
+            byBucket[b] = (byBucket[b] ?: 0L) + e.heardMs
+        }
+        val topWd = byWeekday.maxByOrNull { it.value }?.key
+        val topBucket = byBucket.maxByOrNull { it.value }?.key
+        if (topWd != null) PeakTime(WEEKDAY_NAMES[topWd.toInt()], topBucket) else null
+    } else if (dayStats.isNotEmpty()) {
+        val byWeekday = HashMap<Long, Long>()
+        for ((day, pair) in dayStats) {
+            val wd = (day + 3).mod(7L)
+            byWeekday[wd] = (byWeekday[wd] ?: 0L) + pair.first.coerceAtLeast(pair.second)
+        }
+        byWeekday.maxByOrNull { it.value }?.key?.let { PeakTime(WEEKDAY_NAMES[it.toInt()], null) }
+    } else {
+        null
+    }
+
+    val byId = librarySongs.associateBy { it.uniqueId }
+
+    val genreMs = HashMap<String, Long>()
+    var taggedMs = 0L
+    for (t in totals) {
+        if (t.ms <= 0L) continue
+        val g = byId[t.key]?.genre?.trim()
+        if (!g.isNullOrEmpty() && !g.equals("unknown", ignoreCase = true)) {
+            genreMs[g] = (genreMs[g] ?: 0L) + t.ms
+            taggedMs += t.ms
+        }
+    }
+    val topGenre = if (taggedMs > 0L) {
+        genreMs.maxByOrNull { it.value }?.let { (name, ms) ->
+            TopGenre(name, ((ms * 100.0) / taggedMs).toInt().coerceIn(1, 100), ms)
+        }
+    } else {
+        null
+    }
+
+    val heardIds = totals.asSequence().filter { it.ms > 0L || it.plays > 0L }.mapTo(HashSet()) { it.key }
+    val libraryExplored = if (librarySongs.isNotEmpty()) {
+        val explored = librarySongs.count { it.playedBefore || it.uniqueId in heardIds }
+        LibraryExplored(explored, librarySongs.size)
+    } else {
+        null
+    }
+
+    val artistTotals = HashMap<String, Long>()
+    for (t in totals) {
+        if (t.ms <= 0L) continue
+        t.artist?.let { a -> splitArtists(a).forEach { artistTotals[it] = (artistTotals[it] ?: 0L) + t.ms } }
+    }
+    val topArtists = artistTotals.entries.sortedByDescending { it.value }.map { it.key to it.value }
+
+    val albumTotals = HashMap<String, Pair<String, Long>>()
+    for (t in totals) {
+        if (t.ms <= 0L) continue
+        val album = byId[t.key]?.album?.trim().orEmpty()
+        if (album.isEmpty() || io.max.paperplay.core.metadata.isCompilationAlbum(album)) continue
+        val cur = albumTotals[album]
+        val artist = cur?.first?.takeIf { it.isNotBlank() } ?: t.artist.orEmpty()
+        albumTotals[album] = artist to ((cur?.second ?: 0L) + t.ms)
+    }
+    val topAlbums = albumTotals.entries
+        .sortedByDescending { it.value.second }
+        .map { Triple(it.key, it.value.first, it.value.second) }
+
+    return ListeningInsights(
+        currentStreak = currentStreak,
+        longestStreak = longestStreak,
+        listenedToday = today in activeDays,
+        busiestDay = busiestDay,
+        peakTime = peakTime,
+        topGenre = topGenre,
+        libraryExplored = libraryExplored,
+        topArtists = topArtists,
+        topAlbums = topAlbums,
     )
 }
 

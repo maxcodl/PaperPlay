@@ -1,8 +1,14 @@
 package io.max.paperplay.ui.app
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import io.max.paperplay.player.OutputInfo
 import io.max.paperplay.ui.state.PlaybackUiState
 import io.max.paperplay.ui.state.SongUi
+import io.max.paperplay.ui.theme.FallbackSeed
+import io.max.paperplay.ui.theme.amoled
+import io.max.paperplay.ui.theme.contrastRatio
+import io.max.paperplay.ui.theme.schemeFromSeed
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -11,11 +17,12 @@ import kotlin.test.assertTrue
 
 class ModernPlayerTest {
     @Test
-    fun playerStylePrefDefaultsToDefaultAndPersistsModern() {
+    fun playerStylePrefDefaultsToFollowAppAndMigratesExplicitValues() {
         val store = mutableMapOf<String, String>()
         val prefs1 = UiPrefs({ store[it] }, { k, v -> store[k] = v })
-        assertEquals(PlayerStyle.Default, prefs1.playerStyle)
+        assertEquals(PlayerStyle.FollowApp, prefs1.playerStyle)
         assertEquals(PlayerStyle.Default, resolveEffectivePlayerStyle(null, isAndroid = true))
+        assertEquals(PlayerStyle.Default, resolveEffectivePlayerStyle(prefs1, isAndroid = true))
         assertEquals(24f, prefs1.modernPlayerBlur)
 
         prefs1.putPlayerStyle(PlayerStyle.Modern)
@@ -96,5 +103,44 @@ class ModernPlayerTest {
         assertEquals("Muse", resolvePlayingFrom(PlaybackUiState(current = s1, queue = listOf(s1, s3))))
         assertEquals("All", resolvePlayingFrom(PlaybackUiState(current = s1, queue = listOf(s1, s4))))
         assertEquals("All", resolvePlayingFrom(PlaybackUiState()))
+    }
+
+    @Test
+    fun modernPlayerPaletteMaintainsContrastAcrossLightDarkAmoledAndExtremeCovers() {
+        val extremeSeeds = listOf(
+            FallbackSeed,
+            0xFFFFFFFF.toInt(), // pure white cover
+            0xFF000000.toInt(), // pure black cover
+            0xFFFF0040.toInt(), // hyper-saturated magenta-red
+            0xFFFFEE00.toInt(), // bright saturated yellow
+        )
+        for (seed in extremeSeeds) {
+            for (dark in listOf(true, false)) {
+                for (amoled in if (dark) listOf(false, true) else listOf(false)) {
+                    for (reduced in listOf(false, true)) {
+                        val base = schemeFromSeed(seed, dark = dark)
+                        val scheme = if (dark && amoled) base.amoled() else base
+                        val p = resolveModernPlayerPalette(scheme, dark = dark, amoled = amoled, reducedTransparency = reduced)
+                        val worstCoverSample = p.scrimMid.compositeOver(if (dark) Color.White else Color.Black)
+                        assertTrue(
+                            contrastRatio(p.onPlayer, worstCoverSample) >= 4.5,
+                            "onPlayer contrast failed (seed=$seed, dark=$dark, amoled=$amoled, reduced=$reduced)",
+                        )
+                        assertTrue(
+                            contrastRatio(p.onPlayerMuted, worstCoverSample) >= 4.5,
+                            "onPlayerMuted contrast failed (seed=$seed, dark=$dark, amoled=$amoled, reduced=$reduced)",
+                        )
+                        assertTrue(
+                            contrastRatio(p.accent, worstCoverSample) >= 3.0,
+                            "accent contrast failed (seed=$seed, dark=$dark, amoled=$amoled, reduced=$reduced)",
+                        )
+                        assertTrue(
+                            contrastRatio(p.sliderActive, worstCoverSample) >= 3.0,
+                            "sliderActive contrast failed (seed=$seed, dark=$dark, amoled=$amoled, reduced=$reduced)",
+                        )
+                    }
+                }
+            }
+        }
     }
 }

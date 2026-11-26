@@ -102,6 +102,7 @@ import io.max.paperplay.ui.state.RepeatUi
 import io.max.paperplay.ui.state.SongUi
 import io.max.paperplay.ui.theme.LocalReduceMotion
 import io.max.paperplay.ui.theme.Motion
+import io.max.paperplay.ui.theme.amoled
 import io.max.paperplay.ui.theme.motionTween
 import io.max.paperplay.ui.theme.schemeFromSeed
 import kotlinx.coroutines.delay
@@ -530,7 +531,14 @@ private fun LyricsControlsStrip(
             ) {
                 Text("Aa", style = MaterialTheme.typography.labelLarge, color = scheme.onSurface)
             }
-            DropdownMenu(sizeMenuOpen, { sizeMenuOpen = false }) {
+            val modernTokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+            DropdownMenu(
+                expanded = sizeMenuOpen,
+                onDismissRequest = { sizeMenuOpen = false },
+                containerColor = if (modernTokens.enabled) modernTokens.overlayBg else androidx.compose.material3.MenuDefaults.containerColor,
+                tonalElevation = if (modernTokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.TonalElevation,
+                shadowElevation = if (modernTokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.ShadowElevation,
+            ) {
                 LyricsTextSize.entries.forEach { size ->
                     DropdownMenuItem(
                         text = { Text(size.label) },
@@ -559,12 +567,14 @@ private fun LyricsChoiceDialog(
     var choices by remember(song.id) { mutableStateOf<List<LyricsChoiceUi>?>(null) }
     LaunchedEffect(song.id) { choices = backend.lyricsChoices(song.id) }
     val shape = appShape(28.dp, CornerArea.Dialogs)
+    val modernTokens = io.max.paperplay.ui.theme.LocalModernTokens.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = overlayRim(shape),
         shape = shape,
-        containerColor = overlayColor(),
+        containerColor = if (modernTokens.enabled) modernTokens.overlayBg else overlayColor(),
+        tonalElevation = if (modernTokens.enabled) 0.dp else androidx.compose.material3.AlertDialogDefaults.TonalElevation,
         title = { Text("Choose lyrics") },
         text = {
             val list = choices
@@ -663,8 +673,12 @@ internal fun FullLyricsPage(
     val song = state.current ?: return
     val base = MaterialTheme.colorScheme
     val dark = base.surface.luminance() < 0.5f
-    val scheme = coverScheme(song.coverUri, dark = dark)
+    val modernTokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val baseScheme = coverScheme(song.coverUri, dark = dark)
         ?: remember(base.primary, dark) { schemeFromSeed(base.primary.toArgb(), dark = dark) }
+    val scheme = remember(baseScheme, dark, modernTokens.amoled) {
+        if (dark && modernTokens.amoled) baseScheme.amoled() else baseScheme
+    }
     val reduceMotion = LocalReduceMotion.current
     val topColor by animateColorAsState(
         lerp(scheme.primaryContainer, scheme.surface, if (dark) 0.28f else 0.42f),

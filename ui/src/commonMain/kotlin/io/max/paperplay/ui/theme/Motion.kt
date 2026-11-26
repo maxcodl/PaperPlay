@@ -109,6 +109,16 @@ object Motion {
         const val StandbyHintMs = 1200
     }
 
+    /** Modern expressive shape-morph and press-feedback tokens (low bounce; navigation/player stay untouched). */
+    object Modern {
+        const val MorphDamping = 0.86f
+        const val MorphStiffness = 560f
+        const val PressScale = 0.95f
+        const val PressDamping = 0.85f
+        const val PressStiffness = 620f
+        const val ColorMs = 180
+    }
+
     /** Desktop-specific interaction, wheel, scrollbar, and subtle card-navigation tokens. */
     object Desktop {
         const val HoverMs = 110
@@ -428,3 +438,26 @@ fun panelExit(): ExitTransition =
 /** The same for the items of a lazy grid. */
 @Composable
 fun LazyGridItemScope.motionItem(): Modifier = if (LocalReduceMotion.current) Modifier else Modifier.animateItem()
+
+/** Low-bounce expressive spring for Modern shape morphs (play/pause, selection badges, toggle corners). */
+@Composable
+fun <T> motionMorphSpec(): FiniteAnimationSpec<T> =
+    if (LocalReduceMotion.current) snap()
+    else spring(
+        dampingRatio = Motion.Modern.MorphDamping,
+        stiffness = LocalMotionTuning.current.scaledStiffness(Motion.Modern.MorphStiffness),
+    )
+
+/** Low-bounce expressive spring for Modern press-scale feedback. */
+@Composable
+fun motionModernPressSpec(): FiniteAnimationSpec<Float> =
+    if (LocalReduceMotion.current) snap()
+    else spring(
+        dampingRatio = Motion.Modern.PressDamping,
+        stiffness = LocalMotionTuning.current.scaledStiffness(Motion.Modern.PressStiffness),
+    )
+
+/** Smooth color/rim transition for Modern glass states. */
+@Composable
+fun <T> motionModernColorSpec(): FiniteAnimationSpec<T> =
+    motionEffectTween(Motion.Modern.ColorMs)

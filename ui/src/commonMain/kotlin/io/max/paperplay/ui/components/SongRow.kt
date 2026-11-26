@@ -63,12 +63,16 @@ fun SongRow(
     coverUriOverride: String? = null,
     actions: SongActions? = null,
 ) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     val scheme = MaterialTheme.colorScheme
     val menuOpen = remember { mutableStateOf(false) }
     // The row's colour eases between states, and a mouse pointer over it lightens it a little (a touch screen never hovers).
     val hover = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hovered = if (io.max.paperplay.ui.isPhone) false else hover.collectIsHoveredAsState().value
     val rowColor = when {
+        tokens.enabled && selected -> tokens.rowSelectedBg
+        tokens.enabled && current -> tokens.rowCurrentBg
+        tokens.enabled -> tokens.rowBg
         selected -> scheme.primaryContainer
         current -> scheme.secondaryContainer.copy(alpha = 0.7f)
         else -> scheme.surfaceContainerLow
@@ -81,10 +85,19 @@ fun SongRow(
     val coverKey = song.album.ifBlank { song.title.ifBlank { song.id } }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = io.max.paperplay.ui.app.appShape(16.dp),
-        color = containerColor,
-        tonalElevation = if (current) 3.dp else 1.dp,
+        modifier = modifier.fillMaxWidth().then(
+            if (tokens.enabled) {
+                Modifier.modernSurface(
+                    tier = ModernSurfaceTier.Row,
+                    shape = io.max.paperplay.ui.app.appShape(18.dp),
+                    active = current,
+                    selected = selected,
+                )
+            } else Modifier
+        ),
+        shape = io.max.paperplay.ui.app.appShape(if (tokens.enabled) 18.dp else 16.dp),
+        color = if (tokens.enabled) androidx.compose.ui.graphics.Color.Transparent else containerColor,
+        tonalElevation = if (tokens.enabled) 0.dp else if (current) 3.dp else 1.dp,
     ) {
         Row(
             modifier = Modifier
@@ -133,7 +146,12 @@ fun SongRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (current) scheme.primary else scheme.onSurface,
+                        color = when {
+                            tokens.enabled && current -> tokens.accentOnGlass
+                            tokens.enabled -> tokens.onGlass
+                            current -> scheme.primary
+                            else -> scheme.onSurface
+                        },
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     // Only the account can play this song, not the bot: a red robot beside the name, the row stays at full strength.
@@ -173,21 +191,21 @@ fun SongRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurfaceVariant,
+                        color = if (tokens.enabled) tokens.onGlassMuted else scheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
                     if (song.pinned || song.offline) {
                         AppIcon(
                             imageVector = if (song.pinned) Icons.Rounded.PushPin else Icons.Rounded.DownloadDone,
                             contentDescription = if (song.pinned) "Pinned" else "Offline",
-                            tint = scheme.primary,
+                            tint = if (tokens.enabled) tokens.accentOnGlass else scheme.primary,
                             modifier = Modifier.size(14.dp),
                         )
                     }
                     if (detail.isNotEmpty()) Text(
                         text = detail,
                         style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = if (tokens.enabled) tokens.onGlassMuted.copy(alpha = 0.8f) else scheme.onSurfaceVariant.copy(alpha = 0.7f),
                         maxLines = 1,
                         softWrap = false,
                     )
@@ -333,13 +351,16 @@ fun SongMenu(
         dismissButton = { androidx.compose.material3.TextButton({ confirmDelete = false }) { Text("Cancel") } },
     )
     Box {
+        val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
         IconButton({ open = true }) { AppIcon(icon, "Song options") }
         if (open) DropdownMenu(
             expanded = true,
             onDismissRequest = { open = false },
             modifier = io.max.paperplay.ui.app.overlayRim(io.max.paperplay.ui.app.appShape(20.dp, io.max.paperplay.ui.app.CornerArea.Dialogs)),
             shape = RoundedCornerShape(20.dp),
-            containerColor = io.max.paperplay.ui.app.overlayColor(),
+            containerColor = if (tokens.enabled) tokens.overlayBg else io.max.paperplay.ui.app.overlayColor(),
+            tonalElevation = if (tokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.TonalElevation,
+            shadowElevation = if (tokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.ShadowElevation,
         ) {
             @Composable
             fun item(text: String, run: () -> Unit) = DropdownMenuItem(

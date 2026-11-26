@@ -587,11 +587,77 @@ class CoreBackend(val services: AppServices) : PlayerControls {
         return repo.repo.listenTotals(from) to repo.repo.listenPerDay(from)
     }
 
+    internal val cachedProfileStats = MutableStateFlow<ProfileStats?>(null)
+    internal val cachedStatsPages = MutableStateFlow<Map<Int, StatsPageData>>(emptyMap())
+
     /** What the Profile page shows: streaks, heatmap, week, top of the last 30 days. Call off the main thread. */
     internal fun profileStats(): ProfileStats {
         val now = nowMoment().epochMs
         val from = io.max.paperplay.core.app.dayOf(now - 29 * 86_400_000L)
-        return computeProfileStats(repo.repo.listenPerDay(), repo.repo.listenTotals(from), repo.repo.listenTotals(), now.floorDiv(86_400_000L))
+        val weekFrom = io.max.paperplay.core.app.dayOf(now - 6 * 86_400_000L)
+        return computeProfileStats(
+            perDay = repo.repo.listenPerDay(),
+            month = repo.repo.listenTotals(from),
+            all = repo.repo.listenTotals(),
+            today = now.floorDiv(86_400_000L),
+            weekTotals = repo.repo.listenTotals(weekFrom),
+        ).also { cachedProfileStats.value = it }
+    }
+
+    /** Full Stats page data for [days] (0 = all time). Call off the main thread. */
+    internal fun statsPageData(days: Int): StatsPageData {
+        val nowMs = nowMoment().epochMs
+        val tzOffsetMs = io.max.paperplay.core.recs.localTimezoneOffsetMs(nowMs)
+        val from = if (days <= 0) "0000-00-00" else io.max.paperplay.core.app.dayOf(nowMs - (days - 1) * 86_400_000L)
+        val perDayStats = repo.repo.listenPerDayStats(from)
+        val totals = repo.repo.listenTotals(from)
+        val allEvents = runCatching { services.playEvents.all() }.getOrDefault(emptyList())
+        val spanEvents = filterEventsForSpan(allEvents, days, nowMs, tzOffsetMs)
+        val songsSnapshot = byId.values.toList()
+        val insights = computeListeningInsights(
+            perDayStats = perDayStats,
+            totals = totals,
+            events = spanEvents,
+            librarySongs = songsSnapshot.map { SongMetaSnapshot(it.unique_id, it.album, it.genre, it.last_played_at != null || it.plays > 0) },
+            nowMs = nowMs,
+            tzOffsetMs = tzOffsetMs,
+        )
+        val topSongs = totals.take(25).map { t -> StatsSongEntry(t, byId[t.key]?.toUi()) }
+        val heroTotal = totals.maxWithOrNull(compareBy<io.max.paperplay.core.library.ListenTotal> { it.plays }.thenBy { it.ms })
+        val heroSong = heroTotal?.let { t -> StatsSongEntry(t, byId[t.key]?.toUi()) }
+
+        val artistCovers = HashMap<String, String>()
+        val albumCovers = HashMap<String, String>()
+        for (s in songsSnapshot) {
+            val cover = s.cover_path ?: continue
+            io.max.paperplay.core.metadata.splitArtists(s.artist).forEach { a ->
+                if (a !in artistCovers) artistCovers[a] = cover
+            }
+            val alb = s.album.trim()
+            if (alb.isNotEmpty() && alb !in albumCovers) albumCovers[alb] = cover
+        }
+        val topArtists = insights.topArtists.take(8).map { (name, ms) ->
+            StatsArtistEntry(name, ms, artistCovers[name])
+        }
+        val topAlbums = insights.topAlbums.take(8).map { (album, artist, ms) ->
+            StatsAlbumEntry(album, artist, ms, albumCovers[album])
+        }
+        val totalMs = perDayStats.values.sumOf { it.first }.takeIf { it > 0L } ?: totals.sumOf { it.ms }
+        val totalPlays = totals.sumOf { it.plays }
+        val distinctSongs = totals.count { it.ms > 0L || it.plays > 0L }
+        return StatsPageData(
+            days = days,
+            totalMs = totalMs,
+            totalPlays = totalPlays,
+            distinctSongs = distinctSongs,
+            heroSong = heroSong,
+            topSongs = topSongs,
+            topArtists = topArtists,
+            topAlbums = topAlbums,
+            insights = insights,
+        ).also { result ->
+            cachedStatsPages.value = cachedStatsPages.value + (days to result)
+        }
     }
 
     val account get() = services.account

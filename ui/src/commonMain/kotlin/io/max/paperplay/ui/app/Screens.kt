@@ -1,4 +1,4 @@
-﻿package io.max.paperplay.ui.app
+package io.max.paperplay.ui.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -135,7 +135,7 @@ fun SetupScreen(
                 Modifier.widthIn(max = 640.dp).fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                tonalElevation = 2.dp,
+                tonalElevation = if (io.max.paperplay.ui.theme.LocalModernTokens.current.enabled) 0.dp else 2.dp,
             ) {
                 Column(
                     Modifier.padding(24.dp).verticalScroll(rememberScrollState()),

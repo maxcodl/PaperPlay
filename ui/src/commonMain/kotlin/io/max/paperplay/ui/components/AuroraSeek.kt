@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -215,6 +216,8 @@ fun AuroraSeek(
     longPressLabel: ((Float) -> String)? = null,
     compact: Boolean = false,
     animateWave: Boolean = true,
+    trackColor: Color? = null,
+    bufferedColor: Color? = null,
 ) {
     val interaction = remember { AuroraSeekInteractionState() }
     LaunchedEffect(interaction.longPressToken) {
@@ -283,8 +286,9 @@ fun AuroraSeek(
     val lineCenterY: Dp = if (compact) 24.dp else 30.dp
     val maxWaveHeightDp: Dp = if (compact) 14.dp else 20.dp
     val thumbDiameterDp: Dp = if (compact) 11.dp else 13.dp
-    val trackColor = Color.White.copy(alpha = 0.30f)
-    val bufferedColor = Color.White.copy(alpha = 0.44f)
+    val isLight = scheme.surface.luminance() >= 0.5f
+    val resolvedTrackColor = trackColor ?: if (isLight) scheme.onSurface.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.30f)
+    val resolvedBufferedColor = bufferedColor ?: if (isLight) scheme.onSurface.copy(alpha = 0.36f) else Color.White.copy(alpha = 0.44f)
 
     BoxWithConstraints(modifier.fillMaxWidth().height(totalHeight)) {
         Box(
@@ -367,11 +371,12 @@ fun AuroraSeek(
                 // 0. Unclipped atmospheric thumb glow behind everything (whitish with a soft accent whisper).
                 val outerHaloRadius = (if (compact) 30.dp else 44.dp).toPx() * thumbScale
                 val haloBoost = if (isScrubbing) 1.15f else 1f
-                val lightAccent = androidx.compose.ui.graphics.lerp(Color.White, c0, 0.34f)
-                val whisperAccent = androidx.compose.ui.graphics.lerp(Color.White, c0, 0.20f)
+                val lightAccent = if (isLight) scheme.primary else androidx.compose.ui.graphics.lerp(Color.White, c0, 0.34f)
+                val whisperAccent = if (isLight) androidx.compose.ui.graphics.lerp(scheme.primary, c0, 0.40f) else androidx.compose.ui.graphics.lerp(Color.White, c0, 0.20f)
+                val haloCore = if (isLight) lightAccent.copy(alpha = (0.28f * haloBoost).coerceAtMost(0.42f)) else Color.White.copy(alpha = (0.48f * haloBoost).coerceAtMost(0.68f))
                 drawCircle(
                     brush = Brush.radialGradient(
-                        0.00f to Color.White.copy(alpha = (0.48f * haloBoost).coerceAtMost(0.68f)),
+                        0.00f to haloCore,
                         0.28f to lightAccent.copy(alpha = (0.26f * haloBoost).coerceAtMost(0.42f)),
                         0.58f to lightAccent.copy(alpha = (0.09f * haloBoost).coerceAtMost(0.16f)),
                         1.00f to Color.Transparent,
@@ -387,7 +392,7 @@ fun AuroraSeek(
                 val trackEnd = w - barStrokePx / 2f
                 if (trackStart < trackEnd) {
                     drawLine(
-                        color = trackColor,
+                        color = resolvedTrackColor,
                         start = Offset(trackStart, baseY),
                         end = Offset(trackEnd, baseY),
                         strokeWidth = barStrokePx,
@@ -396,7 +401,7 @@ fun AuroraSeek(
                     val bufX = (pad + buf * usableW).coerceAtMost(trackEnd)
                     if (buf > shown && bufX > trackStart) {
                         drawLine(
-                            color = bufferedColor,
+                            color = resolvedBufferedColor,
                             start = Offset(trackStart, baseY),
                             end = Offset(bufX, baseY),
                             strokeWidth = barStrokePx,
@@ -467,7 +472,11 @@ fun AuroraSeek(
                         path.lineTo(waveEndX, baseY)
                         path.close()
 
-                        val tint = androidx.compose.ui.graphics.lerp(Color.White, c0, ribbonTints[i])
+                        val tint = if (isLight) {
+                            androidx.compose.ui.graphics.lerp(scheme.primary, c0, ribbonTints[i])
+                        } else {
+                            androidx.compose.ui.graphics.lerp(Color.White, c0, ribbonTints[i])
+                        }
                         val fillTone = tint.copy(alpha = if (spec.isFrontWhite) spec.baseAlpha else spec.topAlpha)
                         drawPath(
                             path = path,
@@ -488,8 +497,8 @@ fun AuroraSeek(
                     val spineEndX = (thumbX - thumbRadius * 0.1f).coerceAtLeast(startX)
                     drawLine(
                         brush = Brush.horizontalGradient(
-                            0.00f to whisperAccent.copy(alpha = 0.25f),
-                            0.14f to whisperAccent.copy(alpha = 0.90f),
+                            0.00f to whisperAccent.copy(alpha = if (isLight) 0.55f else 0.25f),
+                            0.14f to whisperAccent.copy(alpha = if (isLight) 0.96f else 0.90f),
                             1.00f to lightAccent,
                             startX = startX,
                             endX = spineEndX,

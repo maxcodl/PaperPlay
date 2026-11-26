@@ -175,7 +175,8 @@ private fun Main(env: AppEnv, firstRun: Boolean, onTourDone: () -> Unit, onResto
     val coverAccent = prefs.accent == "cover" || (prefs.accent == "dynamic" && !isPhone)
     val seed = if (coverAccent) io.max.paperplay.ui.app.CoverSeeds.seed(coverUri) else prefs.seed
     val reduceMotion = prefs.reduceMotion || rememberSystemReduceMotion()
-    PaperPlayTheme(dark = dark, seed = seed, dynamic = prefs.accent == "dynamic", amoled = prefs.amoled) {
+    val effectiveUiStyle = io.max.paperplay.ui.app.resolveEffectiveUiStyle(prefs)
+    PaperPlayTheme(dark = dark, seed = seed, dynamic = prefs.accent == "dynamic", amoled = prefs.amoled, uiStyle = effectiveUiStyle) {
         androidx.compose.runtime.CompositionLocalProvider(
             io.max.paperplay.ui.app.LocalUiPrefs provides prefs,
             io.max.paperplay.ui.theme.LocalReduceMotion provides reduceMotion,

@@ -2,6 +2,91 @@
 
 All notable changes to PaperPlay are listed here, newest first. Each stable release adds its section automatically.
 
+## [1.23.0] - 2026-11-26
+
+### Added
+- Rewrite Android Profile page for Default and Modern styles ([`d98120f`](https://github.com/maxcodl/PaperPlay/commit/d98120fd5b2a8093e6841c449ddefb23478b4835))
+- Modern Android UI foundation, tokens, backdrop host, and prefs ([`6f1719e`](https://github.com/maxcodl/PaperPlay/commit/6f1719e1e7bb9403a34a87e134a6782baaddb8e5))
+
+### Other changes
+- Simplify Settings Appearance App style selector ([`267e1e1`](https://github.com/maxcodl/PaperPlay/commit/267e1e15066da242cad55d346d936c2f83d65017))
+- Unify mini-player hide and add Modern swipe-down hide and expand gestures ([`7a389e7`](https://github.com/maxcodl/PaperPlay/commit/7a389e77487d2e6c05e0df3765ca7062d2174ab8))
+
+**Full changes:** [v1.22.0...v1.23.0](https://github.com/maxcodl/PaperPlay/compare/v1.22.0...v1.23.0)
+
+## [1.22.0] - 2026-11-26
+
+### Improved
+- Unify ambient and background animations on shared visibility-gated clock ([`7ca63ef`](https://github.com/maxcodl/PaperPlay/commit/7ca63ef59b21d29b1b579fad548d635ece510610))
+- Share skeleton shimmer clock and unify list and Home animations ([`eda2f41`](https://github.com/maxcodl/PaperPlay/commit/eda2f417dcecad92dc6d60e54c36bb51c49b4cc7))
+- Stage FullPlayer content and defer wave/glass effects until settled ([`17adb8f`](https://github.com/maxcodl/PaperPlay/commit/17adb8fc82729e41423ecc2b8f675b218fa69e84))
+- Defer Modern glass blur during sheet slide and prewarm cover/output ([`4f41447`](https://github.com/maxcodl/PaperPlay/commit/4f4144703bc23dcc188073f45719ac84289f5e5c))
+- Remove SongRow BoxWithConstraints, hoist regex, and optimize CoverImage/skeleton ([`de71dbc`](https://github.com/maxcodl/PaperPlay/commit/de71dbc5c2a9d88da9909b504b6b7d57e254411e))
+- Stabilize LocalPageTop state and defer g0 reads out of MainShell ([`b0fe07d`](https://github.com/maxcodl/PaperPlay/commit/b0fe07ddd447d8ebaa670fb9f4a0beaf207a8ea1))
+- Compute CoverSeeds off main thread with per-URI Compose state ([`24a5e2c`](https://github.com/maxcodl/PaperPlay/commit/24a5e2c8d21f3f38c4208b7b15385b89484ebbcb))
+- Eliminate per-buffer PEQ re-upload and allocations on audio path ([`8d19b62`](https://github.com/maxcodl/PaperPlay/commit/8d19b62814fb25642990105e7f78f187cbab41a7))
+
+### Added
+- Add unified Motion tokens, shared AmbientClock, system reduce-motion, and Motion Lab ([`a4bfd22`](https://github.com/maxcodl/PaperPlay/commit/a4bfd22821778f41fb398dc19256a8ec012678bb))
+- Add layer-based shared cover transition synced to sheet progress ([`d0c7669`](https://github.com/maxcodl/PaperPlay/commit/d0c7669eff89db99581e13e1e5ae7a385205b908))
+- Add PlayerSheetHost, unified drag gesture, back cancel, and system bar tint ([`b843b5e`](https://github.com/maxcodl/PaperPlay/commit/b843b5e2af08133f2ca461b2c3443783e8658898))
+- Add PlayerTransitionController state machine and motion tokens ([`9e1de46`](https://github.com/maxcodl/PaperPlay/commit/9e1de467be067035cf216c2ccf2cf14524a51462))
+
+### Fixed
+- Order drawWithContent before layerBackdrop and decouple Modern glass settle ([`3e33571`](https://github.com/maxcodl/PaperPlay/commit/3e335715ea61329845372b6d2a893f474bc2d190))
+- Add covered hysteresis and keep underlying page mounted ([`76de5f6`](https://github.com/maxcodl/PaperPlay/commit/76de5f676a808efa15d7ed43d2b9bfe5fe01c584))
+- Use critically damped sheet spring and clamp translation ([`c7560d1`](https://github.com/maxcodl/PaperPlay/commit/c7560d1f550e24df78104be34ce61405ae4a0695))
+- Raise AppEvents cover-cache clear threshold to TRIM_MEMORY_BACKGROUND ([`18e795e`](https://github.com/maxcodl/PaperPlay/commit/18e795ebc1012c5256d1f399b7bb9da7e018e15a))
+- Publish CoverSeeds in mutable snapshot and unblock FileCoverLoader ([`0e505b9`](https://github.com/maxcodl/PaperPlay/commit/0e505b985a73850e7c908b082ca2a0c54ac5804b))
+- Restore full-bounds diagonal shimmer draw in HomeSkeleton ([`0cfe278`](https://github.com/maxcodl/PaperPlay/commit/0cfe27885dd8a509764825d8fc5ff5bd300dc83b))
+- Harden Rust EQ reconfigure/NaN/zero-alloc JNI and UAC1 probe volume fallback ([`98fa7c2`](https://github.com/maxcodl/PaperPlay/commit/98fa7c2eecb7718ce7c3c47a5b74811de4a98af2))
+- Dispatch JvmPlayerEngine playing work to vlc-cmd and guard post-release cmds ([`0707be3`](https://github.com/maxcodl/PaperPlay/commit/0707be391a2c7a986b47a39b78e48805fabc6383))
+- Clear mpv filters in exclusive mode, free ctx on init failure, and stop 4Hz idle poll ([`d99aaf8`](https://github.com/maxcodl/PaperPlay/commit/d99aaf83eb96eb6d73a4195a832f7f504a89b015))
+- Remember desktop AppEnv, scope mini window state, and remove taskbar poll loop ([`8f0760d`](https://github.com/maxcodl/PaperPlay/commit/8f0760de331d07637413216707e57e0aa4cae30a))
+- Close Skia image handles on desktop, trim cover cache, and stop truncating logcat ([`1321366`](https://github.com/maxcodl/PaperPlay/commit/13213664cc747c3511b7f721095ffccdd8903ef8))
+- Pause idle BitPerfect/Standby animations and block touches behind Onboarding ([`b45889e`](https://github.com/maxcodl/PaperPlay/commit/b45889ef188c583b4c1f94087dfeb58b023884dd))
+- Throttle AddressBook.learn writes and clear Netplay external sources on leave ([`669d8d7`](https://github.com/maxcodl/PaperPlay/commit/669d8d720270f7b795010a522f4040cc40f7b417))
+- Guarantee AppServices runtime teardown, lazy close, and flushCache draining ([`7512417`](https://github.com/maxcodl/PaperPlay/commit/75124174959f1f2447ccacc606f92e5913ade94b))
+- Synchronize Uploader sent map and remove O(N^2) enqueue scan ([`c68becf`](https://github.com/maxcodl/PaperPlay/commit/c68becf8cf17936befdf3388e4f266de86174c05))
+- Synchronize BotPool clients map and shut down failed extra-bot sessions ([`194402c`](https://github.com/maxcodl/PaperPlay/commit/194402c726466b9028a611b1f40a573e348f93d4))
+- Synchronize CoverService giveUps, fix upgrade queueing, and reuse album covers ([`89bb107`](https://github.com/maxcodl/PaperPlay/commit/89bb107a6a7ab2784466a2cedebf719e243420c4))
+- Stop UsbAudioManager volume poll spam, ContentObserver leak, and duplicate receiver ([`573d659`](https://github.com/maxcodl/PaperPlay/commit/573d65990867840d0a98602907af771d123ecb90))
+- Prevent handle double-free and wake lock leak in legacy UsbAudioStreamer ([`a983cfe`](https://github.com/maxcodl/PaperPlay/commit/a983cfeebe1f7fdd19af78170003a04d4b4d7546))
+- Avoid MainActivity leak in watchActivity and guard UpdateInstallReceiver on API < 33 ([`8073aa4`](https://github.com/maxcodl/PaperPlay/commit/8073aa43e6b0d291105992fe3102911f13671987))
+- Clear activePlayer on destroy and detach old loggingListener on rebuild ([`16ce9d2`](https://github.com/maxcodl/PaperPlay/commit/16ce9d2be70862ab6f7528cf50ebc68e9c102f95))
+- Preserve queue items across bit-perfect rebuild on STATE_ENDED ([`35cc3f9`](https://github.com/maxcodl/PaperPlay/commit/35cc3f994ebfe75272b0ae67a9477b5deba2f8c1))
+- Keep UsbThreadHelper in ProGuard and clear JNI_OnLoad exceptions ([`ef5c611`](https://github.com/maxcodl/PaperPlay/commit/ef5c61178e9ef3c3ebf78ded972be0c5d28089fa))
+
+### Other changes
+- Log: what downloaded each minute and why, and where the song storage is ([`f022542`](https://github.com/maxcodl/PaperPlay/commit/f02254208cc957738ba9ead4786bf8c6f02c7480))
+- Duplicates: copies whose length was never read are found by their file size ([`8c8fb8e`](https://github.com/maxcodl/PaperPlay/commit/8c8fb8e8e0fbfd3746ea674009e944803a79e55e))
+- A post another device found gone from Telegram leaves this library too ([`9dd25eb`](https://github.com/maxcodl/PaperPlay/commit/9dd25eb7afd502fdf0c451e3740f0b2978d8bee8))
+- A device that another one drives stops controlling that one, so neither shows the other as playing ([`d068241`](https://github.com/maxcodl/PaperPlay/commit/d068241695b7a56b61d1438506c64374790cea3f))
+- Standby turns within half a second: the raw motion sensor instead of the slow gravity sensor ([`b523a5f`](https://github.com/maxcodl/PaperPlay/commit/b523a5fba0835c6d73b126fd746c046fdc87f772))
+- Standby: the rotation button shows whether it is on, and says so when tapped ([`ca44eb3`](https://github.com/maxcodl/PaperPlay/commit/ca44eb38527a1c8cea6c72586567cdf5378d2129))
+- Standby: the rotation button fades out like the settings button ([`da068eb`](https://github.com/maxcodl/PaperPlay/commit/da068ebf7ecc598a248aa0ff87e4237d278f2c0f))
+- Standby turns the right way, also when the phone leans back, and no longer flips near 45 degrees ([`db99928`](https://github.com/maxcodl/PaperPlay/commit/db999286904fb60b7bdb464b7b1154fd08391446))
+- Add deep-buffer, PLL, 144Hz, and 64-band Standby visualizer tests ([`678ac38`](https://github.com/maxcodl/PaperPlay/commit/678ac38b74e445bd56136087deb1926e660a25cd))
+- Upgrade Standby refresh rate lock and 64-band Bezier/capsule visuals ([`815bdde`](https://github.com/maxcodl/PaperPlay/commit/815bdde30b0c62e64dddf24e94fe9e28cab71403))
+- Fix AudioTap deep-buffer history, PLL clock, and display latency sync ([`a12b8be`](https://github.com/maxcodl/PaperPlay/commit/a12b8becaf09c863df94b1ff3601d7f5011fd50a))
+- Finalize AudioTap tests and update checklist for Standby visualizer ([`514e6e3`](https://github.com/maxcodl/PaperPlay/commit/514e6e36bd9c78ac3c8d9646a0b677ae79edc1a8))
+- Add offline reference analyzer and objective AudioTap/Standby tests ([`c57f80d`](https://github.com/maxcodl/PaperPlay/commit/c57f80d9305b728c8e46888566adda93d63ff04f))
+- Retune StandbyVisual smoother, add sync offset slider and diagnostics HUD ([`bd6261a`](https://github.com/maxcodl/PaperPlay/commit/bd6261a1cf4315c71939c95f1fac29a7c6659da5))
+- Redesign AudioTap with multi-res FFT, time-domain bass, and region AGC ([`1738f31`](https://github.com/maxcodl/PaperPlay/commit/1738f31338d5a42c925db546ff22a9e86f14a9f8))
+- Update checklist for desktop motion rewrite ([`5e71e2e`](https://github.com/maxcodl/PaperPlay/commit/5e71e2e9d40cea29609f31e62f8a0e0ca16206b6))
+- Pass motion bench args through Gradle desktopApp run ([`e21a192`](https://github.com/maxcodl/PaperPlay/commit/e21a19200d8723b95e4884c99fddfe8f168ea534))
+- Add desktop frame metrics, Motion Lab desktop suite, and scripted benchmark ([`3872a05`](https://github.com/maxcodl/PaperPlay/commit/3872a05a3d7c6702cd4eea762832d1f38117b868))
+- Eliminate desktop first-frame flash, wire file drop drag state, and gate idle loop ([`910a89b`](https://github.com/maxcodl/PaperPlay/commit/910a89b40b4deacfa1dbe9f516255350ebddb555))
+- Wire desktop shell, now playing, mini window, and lists to motion system ([`fa41875`](https://github.com/maxcodl/PaperPlay/commit/fa418758b5444b3d202a4338a4b232440158946b))
+- Add desktop input, tooltip, smooth wheel scroll, scrollbar, and drop overlay ([`df3cf78`](https://github.com/maxcodl/PaperPlay/commit/df3cf78212f6a88dc43398d7494a12af9475f786))
+- Add desktop motion tokens and resize-resilient transitions ([`a245f4f`](https://github.com/maxcodl/PaperPlay/commit/a245f4fef78d1d599796cfb21521c9d60d103210))
+- Ui: remove Standby Rhythm fallback and timer pulses, wire onset detector ([`6d94582`](https://github.com/maxcodl/PaperPlay/commit/6d9458225af4379538cf02b8abc0d05fcb03a18d))
+- Audio: feed AudioTap on desktop mpv and vlcj via synced silent shadow decoder ([`f033d57`](https://github.com/maxcodl/PaperPlay/commit/f033d579315ef4c4dbb4d9e69148ae01f98f3fd8))
+- Audio: feed AudioTap from all Android normal, engine, API34, and USB paths ([`2500773`](https://github.com/maxcodl/PaperPlay/commit/2500773dfafb2997d97a15c96adc35f16c809dc2))
+- Audio: schedule AudioTap by playout clock, decimate high rates, add onset detector ([`6ead557`](https://github.com/maxcodl/PaperPlay/commit/6ead5577cb90b9053714f9ef11a7711e8ec6fda6))
+
+**Full changes:** [v1.21.6...v1.22.0](https://github.com/maxcodl/PaperPlay/compare/v1.21.6...v1.22.0)
+
 ## [1.21.6] - 2026-11-25
 
 ### Other changes

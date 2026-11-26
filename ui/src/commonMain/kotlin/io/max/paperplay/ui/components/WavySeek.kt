@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +58,9 @@ fun WavySeek(
     label: String? = null,
     longPressLabel: ((Float) -> String)? = null,
     animateWave: Boolean = true,
+    activeColor: Color? = null,
+    trackColor: Color? = null,
+    bufferedColor: Color? = null,
 ) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     var longPressText by remember { mutableStateOf<String?>(null) }
@@ -106,15 +110,15 @@ fun WavySeek(
         }
     }
 
-    val active = WavyProgressIndicatorDefaults.indicatorColor
-    val trackColor = WavyProgressIndicatorDefaults.trackColor
+    val active = activeColor ?: WavyProgressIndicatorDefaults.indicatorColor
+    val resolvedTrackColor = trackColor ?: WavyProgressIndicatorDefaults.trackColor
     val indicatorStroke = WavyProgressIndicatorDefaults.linearIndicatorStroke
     val trackStroke = WavyProgressIndicatorDefaults.linearTrackStroke
     val gapSize = WavyProgressIndicatorDefaults.LinearIndicatorTrackGapSize
     val stopSize = WavyProgressIndicatorDefaults.LinearTrackStopIndicatorSize
     val wavelength = WavyProgressIndicatorDefaults.LinearDeterminateWavelength
     val barHeight = WavyProgressIndicatorDefaults.LinearContainerHeight
-    val bufferedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
+    val resolvedBufferedColor = bufferedColor ?: MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
 
     BoxWithConstraints(modifier.fillMaxWidth().height(52.dp)) {
         Box(
@@ -201,7 +205,7 @@ fun WavySeek(
                             val midY = size.height / 2f
                             rotate(if (layoutDirection == LayoutDirection.Ltr) 0f else 180f) {
                                 drawLine(
-                                    color = bufferedColor,
+                                    color = resolvedBufferedColor,
                                     start = Offset(trackStart, midY),
                                     end = Offset(bufferedEnd, midY),
                                     strokeWidth = trackStroke.width,
@@ -211,7 +215,7 @@ fun WavySeek(
                         }
                     },
                 color = active,
-                trackColor = trackColor,
+                trackColor = resolvedTrackColor,
                 stroke = indicatorStroke,
                 trackStroke = trackStroke,
                 gapSize = gapSize,

@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import io.max.paperplay.ui.components.ModernSurfaceTier
+import io.max.paperplay.ui.components.modernSurface
 import io.max.paperplay.ui.theme.motionSpatialSpring
 import kotlinx.coroutines.launch
 
@@ -48,19 +50,25 @@ fun Modifier.toastSurface(bg: Color, fg: Color): Modifier =
 
 @Composable
 private fun SwipeToast(data: SnackbarData, tint: Color?) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     val scheme = MaterialTheme.colorScheme
     val bg = if (tint != null) lerp(tint, scheme.onSurface, 0.16f) else scheme.primaryContainer
-    val fg = if (bg.luminance() < 0.5f) Color.White else Color.Black
+    val fg = if (tokens.enabled) tokens.onGlass else if (bg.luminance() < 0.5f) Color.White else Color.Black
     val offset = remember(data) { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val snapBackSpec = motionSpatialSpring<Float>()
+    val surfaceMod = if (tokens.enabled) {
+        Modifier.modernSurface(ModernSurfaceTier.Overlay, ToastShape, LookGroup.Overlays)
+    } else {
+        Modifier.toastSurface(bg, fg)
+    }
     Row(
         Modifier.padding(horizontal = 16.dp).widthIn(max = 440.dp)
             .graphicsLayer {
                 translationX = offset.value
                 alpha = (1f - kotlin.math.abs(offset.value) / 600f).coerceIn(0f, 1f)
             }
-            .toastSurface(bg, fg)
+            .then(surfaceMod)
             .pointerInput(data) {
                 detectHorizontalDragGestures(
                     onDragEnd = {

@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -108,6 +109,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import io.max.paperplay.ui.state.PlaybackUiState
 import io.max.paperplay.ui.state.RepeatUi
 import io.max.paperplay.ui.state.SongUi
+import io.max.paperplay.ui.theme.amoled
 import io.max.paperplay.ui.theme.schemeFromSeed
 
 /**
@@ -145,12 +147,17 @@ fun FullPlayer(
 
     val style = resolveEffectivePlayerStyle(LocalUiPrefs.current)
     if (style == PlayerStyle.Modern) {
+        val appDark = base.background.luminance() < 0.5f
+        val appAmoled = appDark && (io.max.paperplay.ui.theme.LocalModernTokens.current.amoled || LocalUiPrefs.current?.amoled == true)
+        val modernBase = coverScheme(song.coverUri, dark = appDark)
+            ?: remember(base.primary, appDark) { schemeFromSeed(base.primary.toArgb(), dark = appDark) }
+        val modernScheme = remember(modernBase, appAmoled) { if (appAmoled) modernBase.amoled() else modernBase }
         ModernFullPlayer(
             state = state,
             error = error,
             backend = backend,
             actions = actions,
-            scheme = scheme,
+            scheme = modernScheme,
             showQueue = showQueue,
             showLyrics = showLyrics,
             fullscreen = fullscreen,
@@ -166,6 +173,8 @@ fun FullPlayer(
             onOpenDevices = onOpenSettings?.let { { devicesOpen = true } },
             onOpenStandby = openStandby,
             modifier = modifier,
+            dark = appDark,
+            amoled = appAmoled,
         )
     } else {
         DefaultFullPlayer(
@@ -604,9 +613,16 @@ internal fun QueueList(state: PlaybackUiState, backend: PlayerControls, modifier
                 }
                 Text(formatDuration(s.durationSec.toLong()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 var menu by remember { mutableStateOf(false) }
+                val modernTokens = io.max.paperplay.ui.theme.LocalModernTokens.current
                 Box {
                     IconButton({ menu = true }) { AppIcon(Icons.Rounded.MoreVert, "Queue options") }
-                    androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = menu,
+                        onDismissRequest = { menu = false },
+                        containerColor = if (modernTokens.enabled) modernTokens.overlayBg else androidx.compose.material3.MenuDefaults.containerColor,
+                        tonalElevation = if (modernTokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.TonalElevation,
+                        shadowElevation = if (modernTokens.enabled) 0.dp else androidx.compose.material3.MenuDefaults.ShadowElevation,
+                    ) {
                         if (i > 0) androidx.compose.material3.DropdownMenuItem({ Text("Move up") }, { menu = false; backend.moveInQueue(i, i - 1) })
                         if (i < state.queue.lastIndex) androidx.compose.material3.DropdownMenuItem({ Text("Move down") }, { menu = false; backend.moveInQueue(i, i + 1) })
                         if (i > state.queueIndex + 1) androidx.compose.material3.DropdownMenuItem({ Text("Play next") }, { menu = false; backend.moveInQueue(i, state.queueIndex + 1) })
@@ -852,9 +868,14 @@ internal fun OutputInfoDialog(song: SongUi, backend: PlayerControls, onDismiss: 
         "Size" to "${song.sizeBytes / 100_000 / 10.0} MB", "Plays" to song.plays.toString(),
     )
     val perfect = info?.bitPerfect == true
+    val modernTokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         androidx.compose.material3.Surface(
-            Modifier.widthIn(max = 460.dp).fillMaxWidth(), shape = RoundedCornerShape(28.dp), color = overlayColor(), tonalElevation = 6.dp,
+            Modifier.widthIn(max = 460.dp).fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = if (modernTokens.enabled) modernTokens.overlayBg else overlayColor(),
+            tonalElevation = if (modernTokens.enabled) 0.dp else 6.dp,
+            shadowElevation = 0.dp,
         ) {
             Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(song.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleLarge)

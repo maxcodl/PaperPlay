@@ -3,7 +3,10 @@ package io.max.paperplay.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -31,12 +34,14 @@ const val FallbackSeed: Int = 0xFF7C5CFF.toInt()
  * [seed] is the cover accent as ARGB (null for none). Without a seed, Android 12+ uses dynamic colour
  * when [dynamic] is on; otherwise the fallback seed is used. [amoled] gives true-black dark surfaces.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PaperPlayTheme(
     dark: Boolean = isSystemInDarkTheme(),
     seed: Int? = null,
     dynamic: Boolean = true,
     amoled: Boolean = true,
+    uiStyle: io.max.paperplay.ui.app.UiStyle = io.max.paperplay.ui.app.UiStyle.Default,
     content: @Composable () -> Unit,
 ) {
     val platform = if (seed == null && dynamic) platformDynamicScheme(dark) else null
@@ -46,9 +51,36 @@ fun PaperPlayTheme(
         if (dark && amoled) base.amoled() else base
     }
     val typography = nunitoTypography()
-    CompositionLocalProvider(LocalReducedTransparency provides !glassEffectsSupported()) {
-        MaterialTheme(colorScheme = scheme, typography = typography, shapes = PaperShapes) {
-            androidx.compose.material3.Surface(color = scheme.background, contentColor = scheme.onBackground, content = content)
+    val reducedTransparency = !glassEffectsSupported()
+    val modernActive = uiStyle == io.max.paperplay.ui.app.UiStyle.Modern && io.max.paperplay.ui.isPhone
+    val modernTokens = remember(modernActive, scheme, dark, amoled, reducedTransparency) {
+        resolveModernTokens(
+            enabled = modernActive,
+            scheme = scheme,
+            dark = dark,
+            amoled = amoled,
+            reducedTransparency = reducedTransparency,
+        )
+    }
+    val activeStyle = if (modernActive) io.max.paperplay.ui.app.UiStyle.Modern else io.max.paperplay.ui.app.UiStyle.Default
+    CompositionLocalProvider(
+        LocalReducedTransparency provides reducedTransparency,
+        LocalModernTokens provides modernTokens,
+        LocalUiStyle provides activeStyle,
+    ) {
+        if (modernActive) {
+            MaterialExpressiveTheme(
+                colorScheme = scheme,
+                motionScheme = MotionScheme.standard(),
+                typography = modernTypography(typography),
+                shapes = PaperShapes,
+            ) {
+                androidx.compose.material3.Surface(color = scheme.background, contentColor = scheme.onBackground, content = content)
+            }
+        } else {
+            MaterialTheme(colorScheme = scheme, typography = typography, shapes = PaperShapes) {
+                androidx.compose.material3.Surface(color = scheme.background, contentColor = scheme.onBackground, content = content)
+            }
         }
     }
 }

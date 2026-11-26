@@ -191,10 +191,12 @@ fun DevicesActions(onOpen: ((String) -> Unit)?, switchOutput: (() -> Unit)?, onD
 internal fun PhoneDevicesDialog(onOpen: (String) -> Unit, switchOutput: (() -> Unit)?, current: SongUi?, onDismiss: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val out = io.max.paperplay.ui.rememberOutputDevice()
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = scheme.surfaceContainerHigh,
+        containerColor = if (tokens.enabled) tokens.overlayBg else scheme.surfaceContainerHigh,
+        tonalElevation = if (tokens.enabled) 0.dp else androidx.compose.material3.BottomSheetDefaults.Elevation,
     ) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("Play on", style = MaterialTheme.typography.headlineSmall)

@@ -327,6 +327,49 @@ class PlayerTransitionController(
         }
     }
 
+    /**
+     * Finishes an upward expand drag from the mini-player using [velocityYPxPerSec] and [heightPx].
+     * Fast upward flicks open; fast downward flicks close; slow drags open past 20% height.
+     */
+    fun releaseExpand(velocityYPxPerSec: Float, heightPx: Float) {
+        if (standalone || disposed) return
+        val safeHeight = heightPx.coerceAtLeast(1f)
+        val clampedVel = if (velocityYPxPerSec.isFinite()) velocityYPxPerSec else 0f
+        upwardOverscrollPx = 0f
+        _settledEffectsReady = false
+
+        val opening = shouldOpenOnExpandRelease(progress, clampedVel)
+        val progressVelocity = (-clampedVel / safeHeight).coerceIn(-12f, 12f)
+
+        if (_reduceMotion) {
+            val spec = playerReducedFadeSpec()
+            if (opening) {
+                launchAnimation(1f, PlayerSheetPhase.Opening, PlayerSheetPhase.Open, spec, 0f)
+            } else {
+                launchAnimation(0f, PlayerSheetPhase.Closing, PlayerSheetPhase.Closed, spec, 0f)
+            }
+            return
+        }
+
+        if (opening) {
+            launchAnimation(
+                target = 1f,
+                targetPhase = PlayerSheetPhase.Opening,
+                settledPhase = PlayerSheetPhase.Open,
+                spec = playerOpenSpringSpec(),
+                initialVelocity = progressVelocity,
+            )
+        } else {
+            launchAnimation(
+                target = 0f,
+                targetPhase = PlayerSheetPhase.Closing,
+                settledPhase = PlayerSheetPhase.Closed,
+                spec = playerCloseSpringSpec(),
+                initialVelocity = progressVelocity,
+            )
+        }
+    }
+
     /** Cancels an active drag (e.g. pointer cancel) and settles back open. */
     fun cancelDrag() {
         if (_phase == PlayerSheetPhase.Dragging) {
@@ -820,6 +863,7 @@ fun SharedCoverLayer(
     song: SongUi?,
     targetCornerRadiusDp: Dp,
     modifier: Modifier = Modifier,
+    startCircular: Boolean = false,
 ) {
     if (song == null || coverBounds == null || !controller.isCoverFlightActive(coverBounds)) return
     val fullSizePx = coverBounds.fullSizeState
@@ -828,6 +872,7 @@ fun SharedCoverLayer(
     val density = LocalDensity.current
     val targetWidthDp = with(density) { fullSizePx.width.toDp() }
     val targetHeightDp = with(density) { fullSizePx.height.toDp() }
+    val targetRadiusPx = with(density) { targetCornerRadiusDp.toPx() }
 
     Box(modifier.fillMaxSize()) {
         Box(
@@ -847,6 +892,11 @@ fun SharedCoverLayer(
                     translationY = curTop
                     scaleX = (curW / full.width).coerceAtLeast(0.01f)
                     scaleY = (curH / full.height).coerceAtLeast(0.01f)
+                    if (startCircular) {
+                        val circleRadius = minOf(size.width, size.height) / 2f
+                        shape = RoundedCornerShape(lerpFloat(circleRadius, targetRadiusPx, t))
+                        clip = true
+                    }
                     compositingStrategy = CompositingStrategy.Offscreen
                 },
         ) {
@@ -854,7 +904,7 @@ fun SharedCoverLayer(
                 uri = song.coverUri,
                 key = song.id,
                 size = maxOf(targetWidthDp, targetHeightDp),
-                radius = targetCornerRadiusDp,
+                radius = if (startCircular) 0.dp else targetCornerRadiusDp,
             )
         }
     }

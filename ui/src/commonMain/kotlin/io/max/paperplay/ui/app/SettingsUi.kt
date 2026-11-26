@@ -1,6 +1,8 @@
 package io.max.paperplay.ui.app
 
 import io.max.paperplay.ui.components.AppIcon
+import io.max.paperplay.ui.components.ModernSurfaceTier
+import io.max.paperplay.ui.components.modernSurface
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,7 +46,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 /** Page title with a back arrow. */
 @Composable
 fun BackTopBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier, actions: @Composable () -> Unit = {}) {
-    Row(modifier.barSurface().padding(start = 4.dp, end = 8.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val barMod = if (tokens.enabled) {
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+            .modernSurface(ModernSurfaceTier.Chrome, appShape(22.dp, CornerArea.Cards), LookGroup.Bars)
+    } else {
+        modifier.barSurface()
+    }
+    Row(barMod.padding(start = 4.dp, end = 8.dp, top = if (tokens.enabled) 8.dp else 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.runtime.CompositionLocalProvider(io.max.paperplay.ui.components.LocalInsideModernSurface provides tokens.enabled) {
         // The arrow arrives pointing forward (the way the page was entered) and turns to point back, as the page settles.
         val reduceMotion = io.max.paperplay.ui.theme.LocalReduceMotion.current
         val turn = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (reduceMotion) 180f else 0f) }
@@ -57,43 +67,77 @@ fun BackTopBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier,
             if (!reduceMotion) turn.animateTo(180f, turnSpec)
         }
         IconButton(onBack) { AppIcon(Icons.Rounded.ChevronRight, "Back", Modifier.graphicsLayer { rotationZ = turn.value }) }
-        Text(title, Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(
+            title,
+            Modifier.weight(1f).padding(start = 4.dp),
+            style = MaterialTheme.typography.headlineSmall,
+            color = if (tokens.enabled) tokens.onGlass else androidx.compose.ui.graphics.Color.Unspecified,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
         actions()
+        }
     }
 }
 
 /** One rounded card per category on the Settings list. */
 @Composable
 fun SettingsCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val shape = appShape(if (tokens.enabled) 22.dp else 20.dp)
+    val cardMod = if (tokens.enabled) {
+        modifier.fillMaxWidth().modernSurface(ModernSurfaceTier.Card, shape, LookGroup.Cards)
+    } else {
+        modifier.fillMaxWidth().partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, shape)
+    }
     Row(
-        modifier.fillMaxWidth().partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, appShape(20.dp))
-            .clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 18.dp),
+        cardMod.clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppIcon(icon, null)
+        androidx.compose.runtime.CompositionLocalProvider(io.max.paperplay.ui.components.LocalInsideModernSurface provides tokens.enabled) {
+        AppIcon(icon, null, tint = if (tokens.enabled) tokens.onGlass else MaterialTheme.colorScheme.onSurface)
         Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = if (tokens.enabled) tokens.onGlass else androidx.compose.ui.graphics.Color.Unspecified)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = if (tokens.enabled) tokens.onGlassMuted else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        AppIcon(Icons.Rounded.ChevronRight, null)
+        AppIcon(Icons.Rounded.ChevronRight, null, tint = if (tokens.enabled) tokens.onGlassMuted else MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 
 /** A titled group of settings rows on one rounded card: groups are told apart by the card and its label, rows inside by thin dividers ([RowDivider]). */
 @Composable
 fun SettingsSection(title: String?, modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val shape = appShape(if (tokens.enabled) 22.dp else 20.dp)
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        if (title != null) Text(title, Modifier.padding(start = 8.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Column(
-            Modifier.fillMaxWidth().partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, appShape(20.dp)).clip(appShape(20.dp)),
-            content = content,
-        )
+        if (title != null) Text(title, Modifier.padding(start = 8.dp, bottom = 6.dp), style = MaterialTheme.typography.titleSmall, color = if (tokens.enabled) tokens.accentOnGlass else MaterialTheme.colorScheme.primary)
+        val boxMod = if (tokens.enabled) {
+            Modifier.fillMaxWidth().modernSurface(ModernSurfaceTier.Card, shape, LookGroup.Cards)
+        } else {
+            Modifier.fillMaxWidth().partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, shape).clip(shape)
+        }
+        Column(boxMod) {
+            androidx.compose.runtime.CompositionLocalProvider(io.max.paperplay.ui.components.LocalInsideModernSurface provides tokens.enabled) {
+                content()
+            }
+        }
     }
 }
 
-/** A thin line between two rows of a [SettingsSection], starting after the icon. */
+/** A thin line between two rows of a [SettingsSection], starting after the icon (tonal spacing in Modern). */
 @Composable
-fun RowDivider() = androidx.compose.material3.HorizontalDivider(Modifier.padding(start = 56.dp, end = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+fun RowDivider() {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    if (tokens.enabled) {
+        androidx.compose.foundation.layout.Spacer(Modifier.size(0.dp, 2.dp))
+    } else {
+        androidx.compose.material3.HorizontalDivider(
+            Modifier.padding(start = 56.dp, end = 12.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        )
+    }
+}
 
 /** True inside Settings: a row's explanation text sits behind an info button next to its title instead of under it. */
 val LocalSettingsInfo = androidx.compose.runtime.staticCompositionLocalOf { false }
@@ -238,11 +282,20 @@ fun NotBuilt(what: String) {
 
 @Composable
 fun ConfirmDialog(title: String, body: String, action: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val shape = appShape(28.dp, CornerArea.Dialogs)
     AlertDialog(
         onDismissRequest = onDismiss,
-        modifier = overlayRim(appShape(28.dp, CornerArea.Dialogs)), shape = appShape(28.dp, CornerArea.Dialogs), containerColor = overlayColor(),
-        title = { Text(title) },
-        text = { Text(body) },
+        modifier = if (tokens.enabled) {
+            Modifier.modernSurface(ModernSurfaceTier.Overlay, shape, LookGroup.Overlays)
+        } else {
+            overlayRim(shape)
+        },
+        shape = shape,
+        containerColor = if (tokens.enabled) tokens.overlayBg else overlayColor(),
+        tonalElevation = if (tokens.enabled) 0.dp else androidx.compose.material3.AlertDialogDefaults.TonalElevation,
+        title = { Text(title, color = if (tokens.enabled) tokens.onGlass else androidx.compose.ui.graphics.Color.Unspecified) },
+        text = { Text(body, color = if (tokens.enabled) tokens.onGlassMuted else androidx.compose.ui.graphics.Color.Unspecified) },
         confirmButton = { TextButton({ onDismiss(); onConfirm() }) { Text(action) } },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )

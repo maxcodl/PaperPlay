@@ -129,6 +129,10 @@ class LibraryRepo(val db: LibraryDatabase, private val clock: () -> Long) {
     fun listenPerDay(fromDay: String = "0000-00-00"): Map<String, Long> =
         misc.listenPerDay(fromDay).executeAsList().associate { it.day to (it.ms ?: 0L) }
 
+    /** Milliseconds and play counts per day, from [fromDay] on. */
+    fun listenPerDayStats(fromDay: String = "0000-00-00"): Map<String, Pair<Long, Long>> =
+        misc.listenPerDayStats(fromDay).executeAsList().associate { it.day to ((it.ms ?: 0L) to (it.plays ?: 0L)) }
+
     fun listenTotals(fromDay: String = "0000-00-00"): List<ListenTotal> =
         misc.listenTotals(fromDay).executeAsList().map { ListenTotal(it.k, it.ms ?: 0, it.plays ?: 0, it.title, it.artist) }
 

@@ -62,9 +62,36 @@ import androidx.compose.ui.text.style.TextOverflow
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.BluetoothAudio
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Speaker
+import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import io.max.paperplay.ui.GlassSurface
 import io.max.paperplay.ui.components.CoverImage
+import io.max.paperplay.ui.components.LocalInsideModernSurface
+import io.max.paperplay.ui.components.ModernCircularPlayProgress
+import io.max.paperplay.ui.components.ModernSurfaceTier
+import io.max.paperplay.ui.components.modernDockBrush
+import io.max.paperplay.ui.components.modernSurface
 import io.max.paperplay.ui.state.PlaybackUiState
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 private class NavEntry(val icon: ImageVector, val selected: ImageVector, val label: String)
 
@@ -77,7 +104,17 @@ private val entries = listOf(
 
 /** The bottom bar: floating glass or docked, laid out by the nav style prefs. */
 @Composable
-fun NavBar(selected: Int, backdrop: Backdrop, prefs: UiPrefs, inset: Dp, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, taskRunning: Boolean = false) {
+fun NavBar(
+    selected: Int,
+    backdrop: Backdrop,
+    prefs: UiPrefs,
+    inset: Dp,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    taskRunning: Boolean = false,
+    coverUri: String? = null,
+) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     val layout = prefs.navLayout
     val labels = layout == NavLayout.Labels || layout == NavLayout.Dock
     val glass = prefs.look(LookGroup.Nav) == Look.Glass
@@ -85,12 +122,28 @@ fun NavBar(selected: Int, backdrop: Backdrop, prefs: UiPrefs, inset: Dp, onSelec
     val corner = (height / 2) * (prefs.barRadius / 100f)
     val docked = !prefs.floatingNav
     val items: @Composable () -> Unit = {
-        Row(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = height).padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             entries.forEachIndexed { i, e ->
                 val w by animateFloatAsState(if (layout == NavLayout.Pill && i == selected) 1.9f else 1f, io.max.paperplay.ui.theme.motionPillSpring(), label = "pill")
                 NavItem(e, i == selected, prefs, if (layout == NavLayout.Dock || layout == NavLayout.Pill) Modifier.weight(w) else Modifier, taskRunning = taskRunning && i == 3) { onSelect(i) }
             }
         }
+    }
+    if (tokens.enabled) {
+        val cover = coverScheme(coverUri, dark = tokens.dark)
+        val dockBrush = modernDockBrush(tokens, cover)
+        val barShape = if (docked) RectangleShape else appShape(tokens.dock.cornerRadius, CornerArea.Cards)
+        val barMod = if (docked) {
+            modifier.fillMaxWidth().heightIn(min = height + inset)
+        } else {
+            modifier.fillMaxWidth().heightIn(min = height)
+        }
+        Box(barMod.modernSurface(ModernSurfaceTier.Chrome, barShape, LookGroup.Nav, gradientBrush = dockBrush, blurOverride = tokens.dock.blurDp)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalInsideModernSurface provides true) {
+                Box(Modifier.fillMaxWidth().then(if (docked) Modifier.padding(bottom = inset) else Modifier)) { items() }
+            }
+        }
+        return
     }
     val bar = modifier.fillMaxWidth().height(height)
     when {
@@ -111,17 +164,25 @@ fun NavBar(selected: Int, backdrop: Backdrop, prefs: UiPrefs, inset: Dp, onSelec
 
 @Composable
 private fun NavItem(e: NavEntry, on: Boolean, prefs: UiPrefs, modifier: Modifier, taskRunning: Boolean, onClick: () -> Unit) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     val layout = prefs.navLayout
     val look = prefs.selectionLook
     val scheme = MaterialTheme.colorScheme
-    val ink = if (on) (if (look == SelectionLook.Fill) scheme.onPrimaryContainer else scheme.primary) else scheme.onSurface
+    val ink = when {
+        tokens.enabled && on -> tokens.dock.selectedContentColor
+        tokens.enabled -> tokens.dock.contentColor
+        on -> if (look == SelectionLook.Fill) scheme.onPrimaryContainer else scheme.primary
+        else -> scheme.onSurface
+    }
     val shape = RoundedCornerShape(28.dp * (prefs.selectionRadius / 100f))
     val bg = when {
+        tokens.enabled && on -> tokens.dock.selectedPillBg
+        tokens.enabled -> Color.Transparent
         on && look == SelectionLook.Fill -> scheme.primaryContainer.copy(alpha = 0.9f)
         on && look == SelectionLook.Soft -> scheme.onSurface.copy(alpha = 0.16f)
         else -> Color.Transparent
     }
-    val ring = if (on && look == SelectionLook.Ring) Modifier.border(BorderStroke(1.5.dp, scheme.primary), shape) else Modifier
+    val ring = if (!tokens.enabled && on && look == SelectionLook.Ring) Modifier.border(BorderStroke(1.5.dp, scheme.primary), shape) else Modifier
     val icon: @Composable () -> Unit = {
         if (taskRunning) {
             BadgedBox(badge = { Badge() }) {
@@ -152,7 +213,26 @@ private fun NavItem(e: NavEntry, on: Boolean, prefs: UiPrefs, modifier: Modifier
     }
 }
 
-/** Solid card in the cover's tone (the theme's secondary container until cover colours exist). */
+/** Resolves a compact output icon from live [OutputInfo] and [OutputDevice] without adding new state. */
+internal fun resolveOutputIcon(
+    outputInfo: io.max.paperplay.player.OutputInfo?,
+    device: io.max.paperplay.ui.OutputDevice?,
+): ImageVector {
+    val dev = outputInfo?.device.orEmpty().lowercase()
+    val name = device?.name.orEmpty().lowercase()
+    return when {
+        "usb" in dev || "dac" in dev || "usbfs" in dev || "usb" in name || "dac" in name ->
+            Icons.Rounded.Usb
+        "bluetooth" in dev || "a2dp" in dev || "ble" in dev || "bt" in dev ||
+            "bluetooth" in name || "buds" in name || "pods" in name ->
+            Icons.Rounded.BluetoothAudio
+        device?.external == true || "head" in dev || "wired" in dev ->
+            Icons.Rounded.Headphones
+        else -> Icons.Rounded.Speaker
+    }
+}
+
+/** Solid card in the cover's tone in Default; floating pill glass bar in Modern. */
 @Composable
 fun MiniPlayer(
     state: PlaybackUiState, onOpen: () -> Unit, onToggle: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit,
@@ -162,8 +242,38 @@ fun MiniPlayer(
     onDevices: ((String) -> Unit)? = null,
     coverBounds: CoverBoundsRegistry? = null,
     coverHidden: () -> Boolean = { false },
+    covered: Boolean = false,
+    outputInfoFlow: StateFlow<io.max.paperplay.player.OutputInfo?>? = null,
+    hideState: MiniPlayerHideState? = null,
+    hideConfig: MiniPlayerHideConfig? = null,
+    playerController: PlayerTransitionController? = null,
+    sheetHeightPx: () -> Float = { 0f },
+    onDismissAccessibility: (() -> Unit)? = null,
 ) {
     val song = state.current ?: return
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    if (tokens.enabled && io.max.paperplay.ui.isPhone) {
+        ModernMiniPlayer(
+            state = state,
+            song = song,
+            onOpen = onOpen,
+            onToggle = onToggle,
+            onNext = onNext,
+            onPrevious = onPrevious,
+            progress = progress,
+            modifier = modifier,
+            coverBounds = coverBounds,
+            coverHidden = coverHidden,
+            covered = covered,
+            outputInfoFlow = outputInfoFlow,
+            hideState = hideState,
+            hideConfig = hideConfig,
+            playerController = playerController,
+            sheetHeightPx = sheetHeightPx,
+            onDismissAccessibility = onDismissAccessibility,
+        )
+        return
+    }
     val cover = coverScheme(song.coverUri)
     val bg by androidx.compose.animation.animateColorAsState(
         if (cover == null) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.lerp(cover.primaryContainer, Color.Black, 0.35f),
@@ -174,8 +284,20 @@ fun MiniPlayer(
     androidx.compose.runtime.DisposableEffect(coverBounds) {
         onDispose { coverBounds?.clearMini() }
     }
-    Box(modifier.fillMaxWidth().pressScale(press, io.max.paperplay.ui.theme.Motion.Micro.CardPressScale).clip(RoundedCornerShape(12.dp)).background(bg)
-        .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, onClickLabel = "Open player", onClick = onOpen)) {
+    Box(
+        modifier.fillMaxWidth()
+            .pressScale(press, io.max.paperplay.ui.theme.Motion.Micro.CardPressScale)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .semantics {
+                if (!state.playing && onDismissAccessibility != null) {
+                    customActions = listOf(
+                        CustomAccessibilityAction("Dismiss mini player") { onDismissAccessibility(); true },
+                    )
+                }
+            }
+            .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, onClickLabel = "Open player", onClick = onOpen),
+    ) {
         Column {
             Row(Modifier.padding(start = 8.dp, top = 8.dp, end = 4.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CoverImage(
@@ -206,6 +328,251 @@ fun MiniPlayer(
                 Box(Modifier.fillMaxWidth().height(2.dp).drawBehind { drawRect(ink, size = androidx.compose.ui.geometry.Size(size.width * progress().coerceIn(0f, 1f), size.height)) })
             }
             Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+/**
+ * Floating pill mini-player for Modern UI:
+ * `[left circular cover] [UPPERCASE ExtraBold title + output icon / artist] [scalloped play/pause inside circular progress ring]`
+ * Horizontal swipe triggers next/previous; tap opens the full player from the left circular cover.
+ */
+@Composable
+private fun ModernMiniPlayer(
+    state: PlaybackUiState,
+    song: io.max.paperplay.ui.state.SongUi,
+    onOpen: () -> Unit,
+    onToggle: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    progress: () -> Float,
+    modifier: Modifier,
+    coverBounds: CoverBoundsRegistry?,
+    coverHidden: () -> Boolean,
+    covered: Boolean,
+    outputInfoFlow: StateFlow<io.max.paperplay.player.OutputInfo?>?,
+    hideState: MiniPlayerHideState? = null,
+    hideConfig: MiniPlayerHideConfig? = null,
+    playerController: PlayerTransitionController? = null,
+    sheetHeightPx: () -> Float = { 0f },
+    onDismissAccessibility: (() -> Unit)? = null,
+) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val cover = coverScheme(song.coverUri, dark = tokens.dark)
+    val outputInfo = outputInfoFlow?.collectAsState()?.value
+    val outDevice = LocalOutputDevice.current ?: io.max.paperplay.ui.rememberOutputDevice()
+    val outputIcon = androidx.compose.runtime.remember(outputInfo, outDevice) { resolveOutputIcon(outputInfo, outDevice) }
+
+    val pillHeight = 68.dp
+    val pillShape = appShape(tokens.dock.cornerRadius, CornerArea.Cards)
+    val pillGradient = modernDockBrush(tokens, cover)
+
+    val press = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val swipeOffset = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val snapBackSpec = io.max.paperplay.ui.theme.motionSpatialSpring<Float>()
+    val dismissSpec = io.max.paperplay.ui.theme.motionEffectTween<Float>(io.max.paperplay.ui.theme.Motion.Effects.FadeFastMs)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val swipeThresholdPx = with(density) { 52.dp.toPx() }
+    val maxShiftPx = with(density) { 56.dp.toPx() }
+
+    val curPlaying by rememberUpdatedState(state.playing)
+    val curOnNext by rememberUpdatedState(onNext)
+    val curOnPrevious by rememberUpdatedState(onPrevious)
+    val curHideState by rememberUpdatedState(hideState)
+    val curHideConfig by rememberUpdatedState(hideConfig)
+    val curController by rememberUpdatedState(playerController)
+    val curSheetHeightPx by rememberUpdatedState(sheetHeightPx)
+
+    androidx.compose.runtime.DisposableEffect(coverBounds) {
+        onDispose { coverBounds?.clearMini() }
+    }
+
+    val stateDesc = if (state.playing) "Playing" else "Paused"
+    val dismissHint = if (!state.playing) ", swipe down to dismiss" else ""
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(pillHeight)
+            .graphicsLayer { translationX = swipeOffset.value }
+            .pressScale(press, io.max.paperplay.ui.theme.Motion.Micro.CardPressScale)
+            .modernSurface(ModernSurfaceTier.Chrome, pillShape, LookGroup.Nav, gradientBrush = pillGradient, blurOverride = tokens.dock.blurDp)
+            .semantics {
+                contentDescription = "${song.title} by ${song.artist}, $stateDesc. Tap to open player, swipe left or right to change track, swipe up to expand$dismissHint."
+                val actionsList = buildList {
+                    add(CustomAccessibilityAction("Next track") { curOnNext(); true })
+                    add(CustomAccessibilityAction("Previous track") { curOnPrevious(); true })
+                    if (!state.playing && onDismissAccessibility != null) {
+                        add(CustomAccessibilityAction("Dismiss mini player") { onDismissAccessibility(); true })
+                    }
+                }
+                customActions = actionsList
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var totalDx = 0f
+                    var totalDy = 0f
+                    var lock = ModernMiniDragLock.None
+                    var releasedCleanly = false
+                    val tracker = VelocityTracker()
+                    val touchSlop = viewConfiguration.touchSlop
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            releasedCleanly = true
+                            break
+                        }
+                        if (change.isConsumed) break
+                        val delta = change.positionChange()
+                        totalDx += delta.x
+                        totalDy += delta.y
+
+                        if (lock == ModernMiniDragLock.None) {
+                            lock = resolveModernMiniDragLock(totalDx, totalDy, touchSlop)
+                            if (lock != ModernMiniDragLock.None) {
+                                change.consume()
+                                tracker.addPosition(change.uptimeMillis, change.position)
+                                when (lock) {
+                                    ModernMiniDragLock.HorizontalSkip ->
+                                        scope.launch { swipeOffset.snapTo(totalDx.coerceIn(-maxShiftPx, maxShiftPx)) }
+                                    ModernMiniDragLock.VerticalExpand -> {
+                                        val h = curSheetHeightPx()
+                                        if (h > 1f) curController?.dragBy(totalDy, h)
+                                    }
+                                    ModernMiniDragLock.VerticalHide -> {
+                                        val hs = curHideState
+                                        val hc = curHideConfig
+                                        if (hs != null && hc != null) hs.onDragDelta(totalDy, hc, curPlaying)
+                                    }
+                                    ModernMiniDragLock.None -> Unit
+                                }
+                            }
+                        } else {
+                            change.consume()
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            when (lock) {
+                                ModernMiniDragLock.HorizontalSkip ->
+                                    scope.launch { swipeOffset.snapTo(totalDx.coerceIn(-maxShiftPx, maxShiftPx)) }
+                                ModernMiniDragLock.VerticalExpand -> {
+                                    val h = curSheetHeightPx()
+                                    if (h > 1f) curController?.dragBy(delta.y, h)
+                                }
+                                ModernMiniDragLock.VerticalHide -> {
+                                    val hs = curHideState
+                                    val hc = curHideConfig
+                                    if (hs != null && hc != null) hs.onDragDelta(delta.y, hc, curPlaying)
+                                }
+                                ModernMiniDragLock.None -> Unit
+                            }
+                        }
+                    }
+
+                    val vel = tracker.calculateVelocity()
+                    when (lock) {
+                        ModernMiniDragLock.HorizontalSkip -> {
+                            if (releasedCleanly) {
+                                when (resolveModernMiniSkip(totalDx, vel.x, swipeThresholdPx)) {
+                                    ModernMiniSkipAction.Next -> curOnNext()
+                                    ModernMiniSkipAction.Previous -> curOnPrevious()
+                                    ModernMiniSkipAction.None -> Unit
+                                }
+                            }
+                            scope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
+                        }
+                        ModernMiniDragLock.VerticalExpand -> {
+                            val h = curSheetHeightPx().coerceAtLeast(1f)
+                            if (releasedCleanly) curController?.releaseExpand(vel.y, h)
+                            else curController?.close()
+                        }
+                        ModernMiniDragLock.VerticalHide -> {
+                            val hs = curHideState
+                            val hc = curHideConfig
+                            if (hs != null && hc != null) {
+                                if (releasedCleanly) {
+                                    scope.launch { hs.onDragEnd(vel.y, hc, curPlaying, dismissSpec, snapBackSpec) }
+                                } else {
+                                    scope.launch { hs.onDragCancel(snapBackSpec) }
+                                }
+                            }
+                        }
+                        ModernMiniDragLock.None -> Unit
+                    }
+                }
+            }
+            .clickable(
+                interactionSource = press,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClickLabel = "Open player",
+                onClick = onOpen,
+            ),
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalInsideModernSurface provides true) {
+        Row(
+            Modifier.fillMaxSize().padding(start = 7.dp, end = 9.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CoverImage(
+                song.coverUri,
+                song.id,
+                modifier = Modifier
+                    .registerMiniCoverBounds(coverBounds)
+                    .graphicsLayer { alpha = if (coverHidden()) 0f else 1f },
+                size = 54.dp,
+                radius = 27.dp,
+            )
+            androidx.compose.animation.Crossfade(
+                Pair(song.title, song.artist),
+                Modifier.weight(1f).padding(horizontal = 12.dp),
+                animationSpec = io.max.paperplay.ui.theme.motionCrossfadeSpec(),
+                label = "modernMiniTitle",
+            ) { (title, artist) ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = title.uppercase(),
+                        modifier = Modifier.basicMarquee(),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.7.sp,
+                        ),
+                        color = tokens.dock.contentColor,
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        AppIcon(
+                            imageVector = outputIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = tokens.dock.contentMutedColor,
+                        )
+                        Text(
+                            text = artist,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Normal),
+                            color = tokens.dock.contentMutedColor,
+                        )
+                    }
+                }
+            }
+            ModernCircularPlayProgress(
+                playing = state.playing,
+                progress = progress,
+                active = state.playing,
+                covered = covered,
+                onClick = onToggle,
+                size = 50.dp,
+                ringColor = tokens.dock.contentColor,
+                trackColor = tokens.dock.contentColor.copy(alpha = 0.22f),
+                buttonContainerColor = tokens.dock.selectedPillBg,
+                buttonContentColor = tokens.dock.selectedContentColor,
+            )
+        }
         }
     }
 }

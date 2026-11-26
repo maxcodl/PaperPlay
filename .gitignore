@@ -10,6 +10,8 @@ HANDOFF_CHECKLIST.md
 HANDOVER.md
 IDEAS_FROM_OTHERS.md
 ENGINE_PLAN.md
+/docs/audit/
+/docs/design/
 *.apk
 .vscode/settings.json
 # TDLib is a platform-native runtime dependency; keep local binaries out of Git.

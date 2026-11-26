@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -46,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
@@ -60,13 +60,13 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.shadow.InnerShadow
-import com.kyant.backdrop.shadow.Shadow
 import io.max.paperplay.player.OutputInfo
 import io.max.paperplay.ui.LocalGlassBackdrop
 import io.max.paperplay.ui.components.AppIcon
 import io.max.paperplay.ui.components.LocalCoverLoader
 import io.max.paperplay.ui.components.TrueAudioIcon
+import io.max.paperplay.ui.theme.LocalModernTokens
+import io.max.paperplay.ui.theme.ensureContrast
 import io.max.paperplay.ui.glassEffectsSupported
 import io.max.paperplay.ui.glassLensSupported
 import io.max.paperplay.ui.isPhone
@@ -81,13 +81,145 @@ import kotlinx.coroutines.isActive
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Warm gold accent for the HI-RES badge outline, waveform glyph, and label on dark glass. */
+/** Warm gold accent for the HI-RES badge on dark glass. */
 internal val ModernHiResGold = Color(0xFFD9A441)
+/** Deep amber-gold for the HI-RES badge on light glass (>= 4.5:1 contrast). */
+internal val ModernHiResGoldLight = Color(0xFF8A5A00)
 
-/** Clamped frosted dark glass fill and rim alphas so white/near-white controls remain legible on any cover. */
+/** Clamped frosted glass fill alphas so controls remain legible on any cover. */
 private const val GLASS_DARK_TINT_ALPHA = 0.44f
-private const val GLASS_FALLBACK_ALPHA = 0.72f
+private const val GLASS_LIGHT_TINT_ALPHA = 0.72f
+private const val GLASS_FALLBACK_ALPHA = 0.76f
 private const val BLOOM_FRAME_NANOS = 33_000_000L
+
+@androidx.compose.runtime.Immutable
+internal data class ModernPlayerPalette(
+    val dark: Boolean,
+    val amoled: Boolean,
+    val reducedTransparency: Boolean,
+    val backdropBase: Color,
+    val fallbackTop: Color,
+    val fallbackMid: Color,
+    val fallbackBot: Color,
+    val scrimTop: Color,
+    val scrimMid: Color,
+    val scrimLow: Color,
+    val scrimBottom: Color,
+    val bloomAlphaMul: Float,
+    val glassFill: Color,
+    val glassActiveFill: Color,
+    val chipBg: Color,
+    val overlayBg: Color,
+    val onPlayer: Color,
+    val onPlayerMuted: Color,
+    val accent: Color,
+    val hiResColor: Color,
+    val sliderActive: Color,
+    val sliderTrack: Color,
+    val sliderBuffered: Color,
+    val grabberColor: Color,
+    val coverVignette: Color,
+)
+
+internal fun resolveModernPlayerPalette(
+    scheme: ColorScheme,
+    dark: Boolean,
+    amoled: Boolean,
+    reducedTransparency: Boolean,
+): ModernPlayerPalette {
+    if (dark) {
+        val base = Color.Black
+        val scrimTop = if (amoled) Color.Black.copy(alpha = 0.72f) else Color.Black.copy(alpha = 0.62f)
+        val scrimMid = if (amoled) Color.Black.copy(alpha = 0.62f) else Color.Black.copy(alpha = 0.56f)
+        val scrimLow = if (amoled) Color.Black.copy(alpha = 0.86f) else Color.Black.copy(alpha = 0.72f)
+        val scrimBottom = if (amoled) Color.Black else Color.Black.copy(alpha = 0.88f)
+        val worstBg = scrimMid.compositeOver(Color.White)
+        val onPlayer = ensureContrast(Color.White, worstBg, 4.5, darkTarget = false)
+        val onPlayerMuted = ensureContrast(Color.White.copy(alpha = 0.78f).compositeOver(worstBg), worstBg, 4.5, darkTarget = false)
+        val accent = ensureContrast(scheme.primary, worstBg, 3.0, darkTarget = false)
+        val hiRes = ensureContrast(ModernHiResGold, Color(0xFF1A140A), 4.5, darkTarget = false)
+        return ModernPlayerPalette(
+            dark = true,
+            amoled = amoled,
+            reducedTransparency = reducedTransparency,
+            backdropBase = base,
+            fallbackTop = if (amoled) lerp(scheme.primaryContainer, Color.Black, 0.55f) else lerp(scheme.primaryContainer, Color.Black, 0.35f),
+            fallbackMid = if (amoled) Color(0xFF0A0A0E) else lerp(scheme.secondaryContainer, Color.Black, 0.65f),
+            fallbackBot = Color.Black,
+            scrimTop = scrimTop,
+            scrimMid = scrimMid,
+            scrimLow = scrimLow,
+            scrimBottom = scrimBottom,
+            bloomAlphaMul = if (amoled) 0.16f else 0.24f,
+            glassFill = if (amoled) Color(0xFF1F1F28) else lerp(scheme.surfaceContainerLow, Color.Black, 0.58f),
+            glassActiveFill = lerp(Color(0xFF1D1D26), accent, 0.28f),
+            chipBg = Color.Black.copy(alpha = if (reducedTransparency) 0.84f else 0.50f),
+            overlayBg = if (amoled) Color(0xFF282834) else lerp(scheme.surfaceContainerHighest, Color(0xFF1A1A22), 0.35f),
+            onPlayer = onPlayer,
+            onPlayerMuted = onPlayerMuted,
+            accent = accent,
+            hiResColor = hiRes,
+            sliderActive = accent,
+            sliderTrack = Color.White.copy(alpha = 0.24f),
+            sliderBuffered = Color.White.copy(alpha = 0.38f),
+            grabberColor = Color.White.copy(alpha = 0.32f),
+            coverVignette = Color.Black.copy(alpha = 0.22f),
+        )
+    }
+
+    // Light Modern Player: misty frosted-light cover backdrop + dark high-contrast text & controls.
+    val lightFloor = lerp(Color.White, scheme.surfaceContainerLowest, 0.22f)
+    val scrimTop = lerp(Color.White, scheme.primaryContainer, 0.16f).copy(alpha = 0.72f)
+    val scrimMid = lerp(Color.White, scheme.surface, 0.18f).copy(alpha = 0.68f)
+    val scrimLow = lerp(Color.White, scheme.surface, 0.12f).copy(alpha = 0.80f)
+    val scrimBottom = lerp(Color.White, scheme.surfaceContainerLowest, 0.10f).copy(alpha = 0.90f)
+    // Worst-case light backdrop is when a pure black album cover sits behind scrimMid.
+    val worstDarkCoverBg = scrimMid.compositeOver(Color.Black)
+    val onPlayer = ensureContrast(scheme.onSurface, worstDarkCoverBg, 4.5, darkTarget = true)
+    val onPlayerMuted = ensureContrast(scheme.onSurfaceVariant, worstDarkCoverBg, 4.5, darkTarget = true)
+    val accent = ensureContrast(scheme.primary, worstDarkCoverBg, 3.0, darkTarget = true)
+    val glassFill = lerp(scheme.surfaceContainerHigh, Color.White, 0.34f)
+    val glassComposited = glassFill.copy(alpha = 0.82f).compositeOver(worstDarkCoverBg)
+    val hiRes = ensureContrast(ModernHiResGoldLight, glassComposited, 4.5, darkTarget = true)
+    val sliderActive = ensureContrast(scheme.primary, worstDarkCoverBg, 3.0, darkTarget = true)
+
+    return ModernPlayerPalette(
+        dark = false,
+        amoled = false,
+        reducedTransparency = reducedTransparency,
+        backdropBase = lightFloor,
+        fallbackTop = lerp(scheme.primaryContainer, Color.White, 0.48f),
+        fallbackMid = lerp(scheme.secondaryContainer, Color.White, 0.62f),
+        fallbackBot = lightFloor,
+        scrimTop = scrimTop,
+        scrimMid = scrimMid,
+        scrimLow = scrimLow,
+        scrimBottom = scrimBottom,
+        bloomAlphaMul = 0.18f,
+        glassFill = glassFill,
+        glassActiveFill = lerp(scheme.primaryContainer, Color.White, 0.20f),
+        chipBg = lerp(scheme.surfaceContainerHigh, Color.White, 0.32f).copy(alpha = if (reducedTransparency) 0.94f else 0.78f),
+        overlayBg = Color.White.copy(alpha = if (reducedTransparency) 0.98f else 0.94f),
+        onPlayer = onPlayer,
+        onPlayerMuted = onPlayerMuted,
+        accent = accent,
+        hiResColor = hiRes,
+        sliderActive = sliderActive,
+        sliderTrack = onPlayer.copy(alpha = 0.22f),
+        sliderBuffered = onPlayer.copy(alpha = 0.36f),
+        grabberColor = onPlayer.copy(alpha = 0.28f),
+        coverVignette = Color.Transparent,
+    )
+}
+
+internal val LocalModernPlayerPalette = androidx.compose.runtime.staticCompositionLocalOf {
+    resolveModernPlayerPalette(
+        scheme = androidx.compose.material3.darkColorScheme(),
+        dark = true,
+        amoled = false,
+        reducedTransparency = false,
+    )
+}
 
 private val LOSSLESS_CODECS = setOf("FLAC", "ALAC", "WAV", "AIFF", "DSD", "APE", "WV")
 private val KNOWN_CODECS = LOSSLESS_CODECS + setOf("MP3", "AAC", "M4A", "OGG", "OPUS", "WMA", "AC3", "EAC3", "EC3", "AC4", "TRUEHD", "MLP")
@@ -154,9 +286,24 @@ internal fun resolvePlayingFrom(state: PlaybackUiState): String {
     return "All"
 }
 
-/** Modern player UI is available on Android builds only; desktop always uses [PlayerStyle.Default]. */
-internal fun resolveEffectivePlayerStyle(prefs: UiPrefs?, isAndroid: Boolean = isPhone): PlayerStyle =
-    if (!isAndroid) PlayerStyle.Default else (prefs?.playerStyle ?: PlayerStyle.Default)
+/** App-wide Modern UI is available on Android builds only; desktop always uses [UiStyle.Default]. */
+internal fun resolveEffectiveUiStyle(prefs: UiPrefs?, isAndroid: Boolean = isPhone): UiStyle =
+    if (!isAndroid) UiStyle.Default else (prefs?.uiStyle ?: UiStyle.Default)
+
+/**
+ * Resolves the effective full-screen player style on this platform.
+ * Desktop always uses [PlayerStyle.Default]. On Android, [PlayerStyle.FollowApp] mirrors [UiStyle].
+ */
+internal fun resolveEffectivePlayerStyle(prefs: UiPrefs?, isAndroid: Boolean = isPhone): PlayerStyle {
+    if (!isAndroid) return PlayerStyle.Default
+    return when (prefs?.playerStyle ?: PlayerStyle.FollowApp) {
+        PlayerStyle.Default -> PlayerStyle.Default
+        PlayerStyle.Modern -> PlayerStyle.Modern
+        PlayerStyle.FollowApp ->
+            if (resolveEffectiveUiStyle(prefs, isAndroid = true) == UiStyle.Modern) PlayerStyle.Modern
+            else PlayerStyle.Default
+    }
+}
 
 /** Maps the user's backdrop blur setting (`0..40 dp`) to a cached cover decode size. */
 internal fun modernBackdropDecodePx(blurDp: Float): Int = when {
@@ -183,18 +330,17 @@ internal fun ModernPlayerBackdrop(
     modifier: Modifier = Modifier,
     settled: Boolean = true,
 ) {
+    val palette = LocalModernPlayerPalette.current
     val loader = LocalCoverLoader.current
-    val foreground = rememberAppForeground()
-    val reduceMotion = LocalReduceMotion.current
     val reducedTransparency = LocalReducedTransparency.current
     val blurDp = LocalUiPrefs.current?.modernPlayerBlur ?: 24f
     val decodePx = modernBackdropDecodePx(blurDp)
-    val palette = remember(coverUri, scheme.primary) {
+    val coverColors = remember(coverUri, scheme.primary) {
         val raw = CoverSeeds.palette(coverUri)
         if (raw.isNotEmpty()) raw.map(::Color) else listOf(scheme.primary, scheme.tertiary)
     }
-    val desatFilter = remember {
-        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.76f) })
+    val desatFilter = remember(palette.dark) {
+        ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(if (palette.dark) 0.76f else 0.58f) })
     }
     val clock = io.max.paperplay.ui.theme.LocalAmbientClock.current
         ?: io.max.paperplay.ui.theme.rememberAmbientClock(active = playing && settled)
@@ -205,11 +351,7 @@ internal fun ModernPlayerBackdrop(
         label = "bloomSettled",
     )
 
-    val fallbackTop = lerp(scheme.primaryContainer, Color.Black, 0.35f)
-    val fallbackMid = lerp(scheme.secondaryContainer, Color.Black, 0.65f)
-    val fallbackBot = lerp(scheme.surfaceContainerLowest, Color.Black, 0.85f)
-
-    Box(modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier.fillMaxSize().background(palette.backdropBase)) {
         if (!reducedTransparency) {
             Crossfade(
                 targetState = coverUri,
@@ -231,7 +373,7 @@ internal fun ModernPlayerBackdrop(
                 } else {
                     Box(
                         Modifier.fillMaxSize().drawBehind {
-                            drawRect(Brush.verticalGradient(0f to fallbackTop, 0.55f to fallbackMid, 1f to fallbackBot))
+                            drawRect(Brush.verticalGradient(0f to palette.fallbackTop, 0.55f to palette.fallbackMid, 1f to palette.fallbackBot))
                         },
                     )
                 }
@@ -239,17 +381,17 @@ internal fun ModernPlayerBackdrop(
         } else {
             Box(
                 Modifier.fillMaxSize().drawBehind {
-                    drawRect(Brush.verticalGradient(0f to fallbackTop, 0.55f to fallbackMid, 1f to fallbackBot))
+                    drawRect(Brush.verticalGradient(0f to palette.fallbackTop, 0.55f to palette.fallbackMid, 1f to palette.fallbackBot))
                 },
             )
         }
 
         // Slow drifting radial blooms echoing the cover's brightest palette hues.
         if (!reducedTransparency) {
-            val c1 = palette[0]
-            val c2 = palette.getOrElse(1) { scheme.tertiary }
+            val c1 = coverColors[0]
+            val c2 = coverColors.getOrElse(1) { scheme.tertiary }
             Canvas(Modifier.fillMaxSize()) {
-                val ba = bloomAlpha
+                val ba = bloomAlpha * palette.bloomAlphaMul
                 if (ba <= 0.001f) return@Canvas
                 val t = clock.seconds
                 val w = size.width
@@ -258,7 +400,7 @@ internal fun ModernPlayerBackdrop(
                 val y1 = h * (0.26f + 0.08f * cos(t * 0.17f))
                 val r1 = maxOf(w, h) * 0.55f
                 drawCircle(
-                    brush = Brush.radialGradient(listOf(c1.copy(alpha = 0.24f * ba), Color.Transparent), Offset(x1, y1), r1),
+                    brush = Brush.radialGradient(listOf(c1.copy(alpha = ba), Color.Transparent), Offset(x1, y1), r1),
                     radius = r1,
                     center = Offset(x1, y1),
                 )
@@ -266,22 +408,22 @@ internal fun ModernPlayerBackdrop(
                 val y2 = h * (0.62f + 0.09f * sin(t * 0.15f))
                 val r2 = maxOf(w, h) * 0.50f
                 drawCircle(
-                    brush = Brush.radialGradient(listOf(c2.copy(alpha = 0.20f * ba), Color.Transparent), Offset(x2, y2), r2),
+                    brush = Brush.radialGradient(listOf(c2.copy(alpha = ba * 0.85f), Color.Transparent), Offset(x2, y2), r2),
                     radius = r2,
                     center = Offset(x2, y2),
                 )
             }
         }
 
-        // Luminance-clamped scrim so white controls and text stay legible on bright, dark, or missing covers.
+        // Luminance-clamped scrim so controls and text stay legible on bright, dark, or missing covers.
         Box(
             Modifier.fillMaxSize().drawBehind {
                 drawRect(
                     Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.54f),
-                        0.42f to Color.Black.copy(alpha = 0.36f),
-                        0.76f to Color.Black.copy(alpha = 0.68f),
-                        1.0f to Color.Black.copy(alpha = 0.86f),
+                        0.0f to palette.scrimTop,
+                        0.42f to palette.scrimMid,
+                        0.76f to palette.scrimLow,
+                        1.0f to palette.scrimBottom,
                     ),
                 )
             },
@@ -290,9 +432,8 @@ internal fun ModernPlayerBackdrop(
 }
 
 /**
- * Frosted dark glass surface honoring [LookGroup.Player], [GlassStyle], [LocalGlassBackdrop],
- * [LocalReducedTransparency], and [appShape]. Falls back to a coherent dark translucent fill
- * when Look=Material or reduced transparency is active.
+ * Frosted glass surface honoring [LookGroup.Player], [GlassStyle], [LocalGlassBackdrop],
+ * [LocalReducedTransparency], and [appShape], with zero outlines and zero shadows.
  */
 @Composable
 internal fun Modifier.modernGlassSurface(
@@ -300,27 +441,27 @@ internal fun Modifier.modernGlassSurface(
     active: Boolean = false,
     accentColor: Color = Color.Unspecified,
 ): Modifier {
+    val palette = LocalModernPlayerPalette.current
     val prefs = LocalUiPrefs.current
-    val scheme = MaterialTheme.colorScheme
     val backdrop = LocalGlassBackdrop.current
     val reduced = LocalReducedTransparency.current
     val useRealGlass = prefs?.look(LookGroup.Player) != Look.Material &&
         backdrop != null && !reduced && (isPhone || prefs?.desktopBlur == true)
 
     val resolvedTint = if (active && accentColor != Color.Unspecified) {
-        lerp(Color.Black, accentColor, 0.28f)
+        lerp(palette.glassFill, accentColor, 0.28f)
     } else {
-        lerp(scheme.surfaceContainerLow, Color.Black, 0.58f)
+        palette.glassFill
     }
 
     if (!useRealGlass) {
-        return shadow(if (reduced) 2.dp else 8.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.28f), spotColor = Color.Black.copy(alpha = 0.28f))
-            .clip(shape)
-            .background(resolvedTint.copy(alpha = if (reduced) 0.86f else GLASS_FALLBACK_ALPHA))
+        val fallbackAlpha = if (reduced) 0.92f else if (palette.dark) GLASS_FALLBACK_ALPHA else 0.82f
+        return clip(shape).background(resolvedTint.copy(alpha = fallbackAlpha))
     }
 
     val g = prefs?.glass ?: GlassStyle()
-    val tintAlpha = (0.28f + g.tint.coerceIn(0f, 1f) * 0.45f).coerceIn(GLASS_DARK_TINT_ALPHA, 0.78f)
+    val minAlpha = if (palette.dark) GLASS_DARK_TINT_ALPHA else GLASS_LIGHT_TINT_ALPHA
+    val tintAlpha = (0.28f + g.tint.coerceIn(0f, 1f) * 0.45f).coerceIn(minAlpha, 0.84f)
     return clip(shape).drawBackdrop(
         backdrop = backdrop!!,
         shape = { shape },
@@ -330,8 +471,8 @@ internal fun Modifier.modernGlassSurface(
             if (glassLensSupported()) lens(g.lensHeight.dp.toPx(), g.lensAmount.dp.toPx(), g.depth, g.chromatic)
         },
         highlight = null,
-        shadow = if (g.shadowRadius > 0f && g.shadowAlpha > 0f) ({ Shadow(radius = g.shadowRadius.dp, color = Color.Black.copy(alpha = g.shadowAlpha)) }) else null,
-        innerShadow = if (g.innerAlpha > 0f) ({ InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
+        shadow = null,
+        innerShadow = null,
         onDrawSurface = { drawRect(resolvedTint.copy(alpha = tintAlpha)) },
     )
 }
@@ -434,13 +575,13 @@ internal fun GlassChip(
     onClick: (() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val palette = LocalModernPlayerPalette.current
     val shape = appShape(50.dp, CornerArea.Chips)
-    val baseBg = Color.Black.copy(alpha = 0.48f)
+    val resolvedBg = if (borderColor != null) lerp(palette.chipBg, borderColor, 0.22f) else palette.chipBg
     Row(
         modifier = modifier
             .clip(shape)
-            .background(baseBg)
-            .then(if (borderColor != null) Modifier.border(1.dp, borderColor, shape) else Modifier)
+            .background(resolvedBg)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -456,6 +597,7 @@ internal fun QualityBadgesRow(
     modifier: Modifier = Modifier,
 ) {
     if (!badges.isHiRes && badges.codec == null && !badges.isBitPerfect) return
+    val palette = LocalModernPlayerPalette.current
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -463,7 +605,7 @@ internal fun QualityBadgesRow(
     ) {
         if (badges.isHiRes) {
             GlassChip(
-                borderColor = ModernHiResGold.copy(alpha = 0.78f),
+                borderColor = palette.hiResColor.copy(alpha = 0.78f),
                 onClick = onClick,
                 modifier = Modifier.semantics { contentDescription = "Hi-Res audio, tap for output details" },
             ) {
@@ -473,7 +615,7 @@ internal fun QualityBadgesRow(
                     bars.forEachIndexed { i, f ->
                         val bh = size.height * f
                         drawRoundRect(
-                            color = ModernHiResGold,
+                            color = palette.hiResColor,
                             topLeft = Offset(i * 2 * bw, (size.height - bh) / 2f),
                             size = Size(bw, bh),
                             cornerRadius = CornerRadius(bw / 2f),
@@ -487,7 +629,7 @@ internal fun QualityBadgesRow(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.6.sp,
                     ),
-                    color = ModernHiResGold,
+                    color = palette.hiResColor,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -505,7 +647,7 @@ internal fun QualityBadgesRow(
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 0.5.sp,
                     ),
-                    color = Color.White.copy(alpha = 0.90f),
+                    color = palette.onPlayer,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -513,11 +655,11 @@ internal fun QualityBadgesRow(
         }
         if (badges.isBitPerfect) {
             GlassChip(
-                borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
+                borderColor = palette.accent.copy(alpha = 0.75f),
                 onClick = onClick,
                 modifier = Modifier.semantics { contentDescription = "Bit-perfect output active, tap for output details" },
             ) {
-                AppIcon(TrueAudioIcon, null, Modifier.size(11.dp), tint = MaterialTheme.colorScheme.primary)
+                AppIcon(TrueAudioIcon, null, Modifier.size(11.dp), tint = palette.accent)
                 Text(
                     "BIT-PERFECT",
                     style = MaterialTheme.typography.labelSmall.copy(
@@ -525,7 +667,7 @@ internal fun QualityBadgesRow(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
                     ),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = palette.accent,
                     maxLines = 1,
                     softWrap = false,
                 )

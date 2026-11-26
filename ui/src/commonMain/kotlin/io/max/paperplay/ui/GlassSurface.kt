@@ -34,6 +34,7 @@ fun GlassSurface(
 ) {
     val tint = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
     val reduced = io.max.paperplay.ui.theme.LocalReducedTransparency.current
+    val modern = io.max.paperplay.ui.theme.LocalModernTokens.current.enabled
     val g = io.max.paperplay.ui.app.LocalUiPrefs.current?.glass ?: io.max.paperplay.ui.app.GlassStyle()
     val edge = when (g.edgeStyle) { 1 -> Highlight.Ambient; 2 -> Highlight.Plain; else -> Highlight.Default }
     Box(
@@ -45,9 +46,9 @@ fun GlassSurface(
                 blur(blur.toPx())
                 if (glassLensSupported()) lens(g.lensHeight.dp.toPx(), g.lensAmount.dp.toPx(), g.depth, g.chromatic)
             },
-            highlight = if (g.edgeWidth > 0f) ({ edge.copy(width = g.edgeWidth.dp, blurRadius = (g.edgeWidth / 2f).dp, alpha = g.edgeAlpha) }) else null,
-            shadow = if (g.shadowRadius > 0f && g.shadowAlpha > 0f) ({ Shadow(radius = g.shadowRadius.dp, color = Color.Black.copy(alpha = g.shadowAlpha)) }) else null,
-            innerShadow = if (g.innerAlpha > 0f) ({ InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
+            highlight = if (!modern && g.edgeWidth > 0f) ({ edge.copy(width = g.edgeWidth.dp, blurRadius = (g.edgeWidth / 2f).dp, alpha = g.edgeAlpha) }) else null,
+            shadow = if (!modern && g.shadowRadius > 0f && g.shadowAlpha > 0f) ({ Shadow(radius = g.shadowRadius.dp, color = Color.Black.copy(alpha = g.shadowAlpha)) }) else null,
+            innerShadow = if (!modern && g.innerAlpha > 0f) ({ InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
             onDrawSurface = { drawRect(tint.copy(alpha = if (reduced) 0.88f else tintAlpha)) },
         ),
     ) { content() }

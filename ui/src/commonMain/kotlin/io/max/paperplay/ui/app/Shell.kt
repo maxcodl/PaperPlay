@@ -61,6 +61,7 @@ import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -203,14 +204,15 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
     var pendingAdd by remember { mutableStateOf<Set<String>?>(null) }
     val snack = remember { SnackbarHostState() }
     // The mini player can be swiped away while nothing plays; starting playback shows it again.
-    var miniGone by remember { mutableStateOf(false) }
-    var miniDrag by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    LaunchedEffect(pb.playing) { if (pb.playing) { miniGone = false; miniDrag = 0f } }
+    val miniHideState = remember { MiniPlayerHideState() }
+    LaunchedEffect(pb.playing) { miniHideState.onPlayingChanged(pb.playing) }
     val scope = rememberCoroutineScope()
     val loader = SharedCovers.loader
-    // Glass needs blur layers; with every part on Material they are skipped.
-    val navGlass = prefs.look(LookGroup.Nav) == Look.Glass
-    val anyGlass = LookGroup.entries.any { prefs.look(it) == Look.Glass }
+    // Glass needs blur layers; with every part on Material (and Default style) they are skipped.
+    // Modern chrome reads pageBackdrop via LocalGlassBackdrop, so it must not wrap the page in a second offscreen layerBackdrop or duplicate AppBackground.
+    val modernUi = io.max.paperplay.ui.theme.LocalModernTokens.current.enabled
+    val navGlass = !modernUi && prefs.look(LookGroup.Nav) == Look.Glass
+    val anyGlass = modernUi || LookGroup.entries.any { prefs.look(it) == Look.Glass }
     val backdrop = rememberLayerBackdrop()
     val pageBackdrop = rememberLayerBackdrop()
 
@@ -315,6 +317,11 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                 playerController.close()
                 navigate { settings = true; settingsDeep = true; settingsStack.clear(); settingsStack.add("motion_lab") }
             }
+            "preview_live" -> if (backend.devOptionsUnlocked.value) uiPreviewOverride.value = UiPreviewOverride.Live
+            "preview_loading" -> if (backend.devOptionsUnlocked.value) uiPreviewOverride.value = UiPreviewOverride.Loading
+            "preview_empty" -> if (backend.devOptionsUnlocked.value) uiPreviewOverride.value = UiPreviewOverride.Empty
+            "preview_error" -> if (backend.devOptionsUnlocked.value) uiPreviewOverride.value = UiPreviewOverride.Error
+            "preview_no_avatar" -> if (backend.devOptionsUnlocked.value) uiPreviewOverride.value = UiPreviewOverride.NoAvatar
         }
         if (openRequest != null) open?.value = null
     }
@@ -397,7 +404,8 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
         )
     }, LocalOpenDetail provides { d: Detail -> playerController.close(); navigate { detail = d; settings = false } }, LocalOutputDevice provides out, LocalOutputSwitch provides remember(backend) { OutputSwitch(backend.activeOutput, { id -> backend.switchOutput(id) { m -> scope.launch { snack.showSnackbar(m) } } }, { id -> backend.switchOutput(id, move = true) { m -> scope.launch { snack.showSnackbar(m) } } }) }, LocalPageTop provides pinnedBar, io.max.paperplay.ui.LocalGlassBackdrop provides (if (anyGlass) pageBackdrop else null)) {
         TagDialogHost(backend, tagDialogs) { m -> scope.launch { snack.showSnackbar(m) } }
-        Box(Modifier.fillMaxSize()) {
+        var phoneHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+        Box(Modifier.fillMaxSize().onSizeChanged { phoneHeightPx = it.height.toFloat() }) {
             // The page background alone is the layer glass cards and bars blur (content on it would recurse).
             Box(Modifier.fillMaxSize().drawWithContent { if (!playerController.isCovered) drawContent() }.then(if (anyGlass) Modifier.layerBackdrop(pageBackdrop) else Modifier)) {
                 AppBackground(prefs, pb.current?.coverUri, base, playing = pb.playing && !playerController.isCovered)
@@ -407,7 +415,10 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                 val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 val navHeight = if (prefs.navLayout == NavLayout.Labels || prefs.navLayout == NavLayout.Dock) 76.dp else 64.dp
                 val barsHeight = (if (pb.current != null) 70.dp + 8.dp else 0.dp) + navHeight + (if (prefs.floatingNav) 24.dp else 0.dp) + bottomInset + 40.dp // extra scroll room so the last item clears the bar
-                val forceDarkBars = playerController.isPlayerSystemBars && !showEqFullScreen && !showLyricsFullScreen
+                val forceDarkBars = playerController.isPlayerSystemBars &&
+                    !showEqFullScreen &&
+                    !showLyricsFullScreen &&
+                    (resolveEffectivePlayerStyle(prefs) != PlayerStyle.Modern || dark)
                 io.max.paperplay.ui.SystemBarAppearanceEffect(darkIcons = !dark && !forceDarkBars)
                 // The layer the nav bar blurs: the page colour (a still copy, so it costs no animation) with the page on top. Without the colour there
                 // would be almost nothing under the bar to blur or refract.
@@ -458,7 +469,12 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                     when {
                         k.settings -> CompositionLocalProvider(LocalSettingsInfo provides true) { SettingsHost(settingsStack, prefs, conn, songs.size, backend, onRestore, ::goBack, barsHeight, deep = settingsDeep) }
                         d != null -> DetailScreen(d, backend, currentId, actions, ::goBack, barsHeight)
-                        k.tab == 0 -> HomeScreen(lib, home, favorites, currentId, conn, scan, actions, { d2 -> navigate { detail = d2 } }, barsHeight, name = prefs.profileName, warm = homeWarm)
+                        k.tab == 0 -> HomeScreen(
+                            lib, home, favorites, currentId, conn, scan, actions,
+                            { d2 -> navigate { detail = d2 } }, barsHeight, name = prefs.profileName, warm = homeWarm,
+                            onProfile = { navigate { tab = 3; profilePage = null; detail = null; settings = false } },
+                            onLibraryTab = { sel -> navigate { tab = 2; libraryTab = sel; detail = null; settings = false } },
+                        )
                         k.tab == 1 -> SearchScreen(backend::search, songs, currentId, actions, { d2 -> navigate { detail = d2 } }, barsHeight)
                         k.tab == 2 -> LibraryScreen(lib, favorites, currentId, actions, { d2 -> navigate { detail = d2 } }, { newPlaylist = true }, barsHeight, selectedTab = libraryTab,
                             recents = recents, onImportSpotify = { navigate { settings = true; settingsDeep = true; settingsStack.clear(); settingsStack.add("spotify") } })
@@ -494,15 +510,19 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                     }
                 }
                 }
+                val dockSideMargin = if (modernUi) io.max.paperplay.ui.theme.LocalModernTokens.current.dock.sideMargin else 16.dp
+                val dockGap = if (modernUi) io.max.paperplay.ui.theme.LocalModernTokens.current.dock.dockGap else 8.dp
                 Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().drawWithContent { if (!playerController.isCovered) drawContent() }.blockTouchesBehind().then(if (prefs.floatingNav) Modifier.padding(start = 16.dp, end = 16.dp, bottom = bottomInset.coerceAtLeast(12.dp)) else Modifier),
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().drawWithContent { if (!playerController.isCovered) drawContent() }.blockTouchesBehind().then(if (prefs.floatingNav) Modifier.padding(start = dockSideMargin, end = dockSideMargin, bottom = bottomInset.coerceAtLeast(12.dp)) else Modifier),
                 ) {
                     // Toasts sit above the mini player and the bar, where they cover the least; swipe one sideways to dismiss it.
                     AppSnackbarHost(snack, Modifier.fillMaxWidth().padding(bottom = 8.dp), tint)
                     RemoteNowStrip(backend)
-                    if (pb.current != null && !miniGone) {
+                    if (pb.current != null && !miniHideState.gone) {
                         val density = androidx.compose.ui.platform.LocalDensity.current
-                        val threshold = with(density) { 80.dp.toPx() }
+                        val hideConfig = remember(modernUi, density) {
+                            if (modernUi) modernMiniHideConfig(density) else defaultMiniHideConfig(density)
+                        }
                         val miniMaxShiftPx = with(density) { io.max.paperplay.ui.theme.PlayerMotionTokens.MINI_PLAYER_MAX_SHIFT_DP.dp.toPx() }
                         val miniSwipeDismissSpec = io.max.paperplay.ui.theme.motionEffectTween<Float>(io.max.paperplay.ui.theme.Motion.Effects.FadeFastMs)
                         val miniSwipeReturnSpec = io.max.paperplay.ui.theme.motionSpatialSpring<Float>()
@@ -512,32 +532,44 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                                 .focusable()
                                 .graphicsLayer {
                                     val p = playerController.progress
-                                    alpha = miniPlayerAlpha(p, playerController.reduceMotion) * (1f - kotlin.math.abs(miniDrag) / 700f).coerceIn(0f, 1f)
-                                    translationX = miniDrag
-                                    translationY = miniPlayerTranslationY(p, miniMaxShiftPx, playerController.reduceMotion)
-                                }.then(if (prefs.floatingNav) Modifier else Modifier.padding(horizontal = 8.dp))
-                                // Only a paused mini player can be swiped away; playing again brings it back. It ends fully gone or fully back, never half way.
-                                .draggable(
-                                    androidx.compose.foundation.gestures.rememberDraggableState { d -> miniDrag += d },
-                                    androidx.compose.foundation.gestures.Orientation.Horizontal, enabled = !pb.playing,
-                                    onDragStopped = { velocity ->
-                                        val from = miniDrag
-                                        val away = kotlin.math.abs(from) > threshold || kotlin.math.abs(velocity) > 800f
-                                        if (away) {
-                                            val dir = if (from != 0f) kotlin.math.sign(from) else kotlin.math.sign(velocity)
-                                            androidx.compose.animation.core.animate(from, dir * 1000f, animationSpec = miniSwipeDismissSpec) { v, _ -> miniDrag = v }
-                                            miniGone = true
-                                            miniDrag = 0f
-                                        } else {
-                                            androidx.compose.animation.core.animate(from, 0f, animationSpec = miniSwipeReturnSpec) { v, _ -> miniDrag = v }
-                                            miniDrag = 0f
-                                        }
-                                    },
+                                    val hideOffset = miniHideState.dragOffset
+                                    alpha = miniPlayerAlpha(p, playerController.reduceMotion) * hideAlphaFactor(hideOffset, hideConfig)
+                                    translationX = if (hideConfig.axis == MiniPlayerHideAxis.HorizontalAny) hideOffset else 0f
+                                    translationY = miniPlayerTranslationY(p, miniMaxShiftPx, playerController.reduceMotion) +
+                                        if (hideConfig.axis == MiniPlayerHideAxis.VerticalDown) hideOffset else 0f
+                                }.then(if (prefs.floatingNav) Modifier else if (modernUi) Modifier.padding(horizontal = dockSideMargin) else Modifier.padding(horizontal = 8.dp))
+                                // Default uses horizontal drag-to-hide here; Modern uses unified axis-locked gestures inside ModernMiniPlayer.
+                                .then(
+                                    if (!modernUi) Modifier.draggable(
+                                        androidx.compose.foundation.gestures.rememberDraggableState { d ->
+                                            miniHideState.onDragDelta(d, hideConfig, pb.playing)
+                                        },
+                                        androidx.compose.foundation.gestures.Orientation.Horizontal,
+                                        enabled = canDismissMiniPlayer(pb.playing),
+                                        onDragStopped = { velocity ->
+                                            miniHideState.onDragEnd(
+                                                velocityPxPerSec = velocity,
+                                                config = hideConfig,
+                                                playing = pb.playing,
+                                                dismissSpec = miniSwipeDismissSpec,
+                                                returnSpec = miniSwipeReturnSpec,
+                                            )
+                                        },
+                                    ) else Modifier
                                 ),
                             onDevices = { id -> navigate { settings = true; settingsDeep = true; settingsStack.clear(); settingsStack.add(id) } },
                             coverBounds = coverBounds,
-                            coverHidden = { playerController.isCoverFlightActive(coverBounds) })
-                        Box(Modifier.height(8.dp))
+                            coverHidden = { playerController.isCoverFlightActive(coverBounds) },
+                            covered = playerController.isCovered,
+                            outputInfoFlow = if (modernUi) backend.outputInfo else null,
+                            hideState = miniHideState,
+                            hideConfig = hideConfig,
+                            playerController = playerController,
+                            sheetHeightPx = { phoneHeightPx.takeIf { it > 1f } ?: with(density) { 640.dp.toPx() } },
+                            onDismissAccessibility = {
+                                scope.launch { miniHideState.dismissProgrammatically(hideConfig, pb.playing, miniSwipeDismissSpec) }
+                            })
+                        Box(Modifier.height(dockGap))
                     }
                     val navTotalPx = with(androidx.compose.ui.platform.LocalDensity.current) {
                         (navHeight + bottomInset + (if (prefs.floatingNav) 24.dp else 0.dp)).toPx()
@@ -554,6 +586,7 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                             translationY = navBarTranslationY(p, navTotalPx, playerController.reduceMotion)
                         },
                         taskRunning = scanning,
+                        coverUri = pb.current?.coverUri,
                     )
                 }
                 PlayerSheetHost(
@@ -574,6 +607,7 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                     coverBounds = coverBounds,
                     song = pb.current,
                     targetCornerRadiusDp = if (resolveEffectivePlayerStyle(prefs) == PlayerStyle.Modern) 24.dp else 28.dp,
+                    startCircular = modernUi,
                 )
                 val eqReduceMotion = io.max.paperplay.ui.theme.LocalReduceMotion.current
                 androidx.compose.animation.AnimatedVisibility(
@@ -737,7 +771,8 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                 }
                 }
                 if (nowSong != null) CoverTinted(nowSong.coverUri) {
-                    Box(Modifier.fillMaxSize()) {
+                    var phoneHeightPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+        Box(Modifier.fillMaxSize().onSizeChanged { phoneHeightPx = it.height.toFloat() }) {
                         // One tone per main colour of the cover, running diagonally; a cover with one colour fades to a darker shade of it.
                         val top = MaterialTheme.colorScheme.primaryContainer
                         val tones = CoverSeeds.palette(nowSong.coverUri).map { schemeFromSeed(it, true).primaryContainer }.ifEmpty { listOf(top) }

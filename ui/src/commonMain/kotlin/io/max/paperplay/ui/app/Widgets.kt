@@ -43,50 +43,67 @@ import io.max.paperplay.ui.components.CoverImage
 /** Slim filled search field with a round end and a clear button. */
 @Composable
 fun PillField(value: String, onChange: (String) -> Unit, hint: String, modifier: Modifier = Modifier) {
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
     val scheme = MaterialTheme.colorScheme
+    val fieldBg = if (tokens.enabled) tokens.fieldBg else scheme.surfaceContainerHigh
+    val fg = if (tokens.enabled) tokens.onGlass else scheme.onSurface
+    val muted = if (tokens.enabled) tokens.onGlassMuted else scheme.onSurfaceVariant
     Row(
-        modifier.fillMaxWidth().height(44.dp).clip(appShape(22.dp, CornerArea.Chips)).background(scheme.surfaceContainerHigh).padding(start = 12.dp, end = 4.dp),
+        modifier.fillMaxWidth().height(44.dp).clip(appShape(22.dp, CornerArea.Chips)).background(fieldBg).padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppIcon(Icons.Rounded.Search, null, Modifier.size(20.dp), tint = scheme.onSurfaceVariant)
+        AppIcon(Icons.Rounded.Search, null, Modifier.size(20.dp), tint = muted)
         BasicTextField(
             value = value,
             onValueChange = onChange,
             singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
-            cursorBrush = SolidColor(scheme.primary),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = fg),
+            cursorBrush = SolidColor(if (tokens.enabled) tokens.accentOnGlass else scheme.primary),
             modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
             decorationBox = { inner ->
                 Box(contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyLarge, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     inner()
                 }
             },
         )
-        if (value.isNotEmpty()) IconButton({ onChange("") }, Modifier.size(36.dp)) { AppIcon(Icons.Rounded.Close, "Clear", Modifier.size(18.dp)) }
+        if (value.isNotEmpty()) IconButton({ onChange("") }, Modifier.size(36.dp)) { AppIcon(Icons.Rounded.Close, "Clear", Modifier.size(18.dp), tint = muted) }
     }
 }
 
-/** Outlined chips; the selected one is filled with the tonal colour. */
+/** Outlined chips in Default; borderless tonal pills in Modern. */
 @Composable
 fun ChipRow(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val shape = appShape(12.dp, CornerArea.Chips)
+    val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+    val shape = appShape(if (tokens.enabled) 50.dp else 12.dp, CornerArea.Chips)
     Row(
         modifier.horizontalScroll(rememberScrollState()).selectableGroup().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         labels.forEachIndexed { i, t ->
             val on = i == selected
+            val bg = when {
+                tokens.enabled && on -> tokens.chipSelectedBg
+                tokens.enabled -> tokens.chipBg
+                on -> MaterialTheme.colorScheme.secondaryContainer
+                else -> Color.Transparent
+            }
+            val fg = when {
+                tokens.enabled && on -> MaterialTheme.colorScheme.onSecondaryContainer
+                tokens.enabled -> tokens.onGlass
+                on -> MaterialTheme.colorScheme.onSecondaryContainer
+                else -> MaterialTheme.colorScheme.onSurface
+            }
             Box(
                 Modifier.heightIn(min = 48.dp)
                     .clip(shape)
-                    .background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                    .then(if (on) Modifier else Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape))
+                    .background(bg)
+                    .then(if (on || tokens.enabled) Modifier else Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape))
                     .selectable(selected = on, role = Role.Tab, onClick = { onSelect(i) })
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(t, style = MaterialTheme.typography.labelLarge, color = if (on) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface)
+                Text(t, style = MaterialTheme.typography.labelLarge, color = fg)
             }
         }
     }

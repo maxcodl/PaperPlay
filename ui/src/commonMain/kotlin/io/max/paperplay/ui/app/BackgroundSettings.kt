@@ -63,13 +63,22 @@ fun BackgroundSettings(prefs: UiPrefs) {
     }
 }
 
+/** App-wide UI style selector (Android only). */
+@Composable
+fun UiStyleSettings(prefs: UiPrefs) {
+    SectionLabel("App style")
+    ChoiceRow(UiStyle.entries, prefs.uiStyle, { it.label }, prefs::putUiStyle)
+}
+
 /** Full-screen player style selector under Settings > Appearance > Display (Android only). */
 @Composable
 fun PlayerStyleSettings(prefs: UiPrefs) {
     SectionLabel("Full-screen player")
     ChoiceRow(PlayerStyle.entries, prefs.playerStyle, { it.label }, prefs::putPlayerStyle)
+    val effective = resolveEffectivePlayerStyle(prefs, isAndroid = true)
     Text(
         when (prefs.playerStyle) {
+            PlayerStyle.FollowApp -> "Follows App style (currently ${effective.label})."
             PlayerStyle.Default -> "Cover-tinted theme with classic controls."
             PlayerStyle.Modern -> "Blurred cover backdrop with dark frosted glass controls and quality badges."
         },
@@ -77,7 +86,7 @@ fun PlayerStyleSettings(prefs: UiPrefs) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    if (prefs.playerStyle == PlayerStyle.Modern) {
+    if (effective == PlayerStyle.Modern || prefs.uiStyle == UiStyle.Modern) {
         SliderRow(
             title = "Backdrop blur: ${prefs.modernPlayerBlur.toInt()} dp",
             value = prefs.modernPlayerBlur,

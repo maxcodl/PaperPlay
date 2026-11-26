@@ -6,6 +6,9 @@ import app.cash.sqldelight.db.SqlDriver
 /** Local hour (0-23) of [epochMs] in the device's time zone. */
 expect fun localHourOf(epochMs: Long): Int
 
+/** Local timezone offset in milliseconds from UTC at [epochMs]. */
+expect fun localTimezoneOffsetMs(epochMs: Long): Long
+
 /** One time a song stopped playing: how much of it was heard, at what hour, and what played just before it. */
 class PlayEvent(val uid: String, val at: Long, val hour: Int, val heardMs: Long, val durMs: Long, val prev: String?)
 

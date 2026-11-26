@@ -24,6 +24,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
+import io.max.paperplay.ui.theme.LocalModernTokens
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -50,9 +51,26 @@ enum class ProgressBarStyle(val label: String) {
     SQUIGGLY_WAVE("Squiggly Wave"),
     AURORA_WAVE("Aurora Wave"),
 }
-enum class PlayerStyle(val label: String) {
+enum class UiStyle(val label: String) {
     Default("Default"),
     Modern("Modern"),
+}
+
+enum class PlayerStyle(val label: String) {
+    FollowApp("Follow app"),
+    Default("Default"),
+    Modern("Modern"),
+}
+
+internal fun parseUiStyle(raw: String?): UiStyle =
+    if (raw.equals("modern", ignoreCase = true)) UiStyle.Modern else UiStyle.Default
+
+internal fun parsePlayerStyle(raw: String?): PlayerStyle = when {
+    raw.isNullOrBlank() -> PlayerStyle.FollowApp
+    raw.equals("modern", ignoreCase = true) -> PlayerStyle.Modern
+    raw.equals("default", ignoreCase = true) -> PlayerStyle.Default
+    raw.equals("followapp", ignoreCase = true) || raw.equals("follow_app", ignoreCase = true) -> PlayerStyle.FollowApp
+    else -> PlayerStyle.Default
 }
 enum class LyricsTextSize(val label: String, val scale: Float) {
     Small("Small", 0.85f),
@@ -170,9 +188,9 @@ class UiPrefs(private val read: (String) -> String?, private val write: (String,
         ProgressBarStyle.entries.firstOrNull { it.name.equals(read("progress_bar_style"), ignoreCase = true) } ?: ProgressBarStyle.SQUIGGLY_WAVE
     )
         private set
-    var playerStyle by mutableStateOf(
-        PlayerStyle.entries.firstOrNull { it.name.equals(read("player_style"), ignoreCase = true) } ?: PlayerStyle.Default
-    )
+    var uiStyle by mutableStateOf(parseUiStyle(read("ui_style")))
+        private set
+    var playerStyle by mutableStateOf(parsePlayerStyle(read("player_style")))
         private set
     var modernPlayerBlur by mutableStateOf(flt("modern_player_blur", 24f).coerceIn(0f, 40f))
         private set
@@ -271,6 +289,7 @@ class UiPrefs(private val read: (String) -> String?, private val write: (String,
     fun putProfilePhoto(path: String?) { profilePhoto = path; write("profile_photo", path.orEmpty()) }
     fun putIconSet(set: IconSet) { iconSet = set; write("icon_set", set.name.lowercase()) }
     fun putProgressBarStyle(style: ProgressBarStyle) { progressBarStyle = style; write("progress_bar_style", style.name.lowercase()) }
+    fun putUiStyle(style: UiStyle) { uiStyle = style; write("ui_style", style.name.lowercase()) }
     fun putPlayerStyle(style: PlayerStyle) { playerStyle = style; write("player_style", style.name.lowercase()) }
     fun putModernPlayerBlur(blur: Float) { val c = blur.coerceIn(0f, 40f); modernPlayerBlur = c; write("modern_player_blur", "$c") }
     fun putLyricsTextSize(size: LyricsTextSize) { lyricsTextSize = size; write("lyrics_text_size", size.name.lowercase()) }
@@ -384,6 +403,7 @@ fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape): Modifier
     if (prefs == null || prefs.look(group) != Look.Glass) return clip(shape).background(color)
     val backdrop = io.max.paperplay.ui.LocalGlassBackdrop.current
     val reduced = io.max.paperplay.ui.theme.LocalReducedTransparency.current
+    val modern = io.max.paperplay.ui.theme.LocalModernTokens.current.enabled
     val alpha = surfaceAlpha(prefs.glassTint)
     val blurDp = prefs.glassBlur.dp
     val g = prefs.glass
@@ -394,9 +414,9 @@ fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape): Modifier
                 backdrop = backdrop,
                 shape = { shape },
                 effects = { if (g.saturation != 1f) colorControls(saturation = g.saturation) else vibrancy(); blur(blurDp.toPx()) },
-                highlight = if (g.edgeWidth > 0f) ({ edge.copy(width = g.edgeWidth.dp, blurRadius = (g.edgeWidth / 2f).dp, alpha = g.edgeAlpha) }) else null,
-                shadow = if (g.shadowRadius > 0f && g.shadowAlpha > 0f) ({ com.kyant.backdrop.shadow.Shadow(radius = g.shadowRadius.dp, color = Color.Black.copy(alpha = g.shadowAlpha)) }) else null,
-                innerShadow = if (g.innerAlpha > 0f) ({ com.kyant.backdrop.shadow.InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
+                highlight = if (!modern && g.edgeWidth > 0f) ({ edge.copy(width = g.edgeWidth.dp, blurRadius = (g.edgeWidth / 2f).dp, alpha = g.edgeAlpha) }) else null,
+                shadow = if (!modern && g.shadowRadius > 0f && g.shadowAlpha > 0f) ({ com.kyant.backdrop.shadow.Shadow(radius = g.shadowRadius.dp, color = Color.Black.copy(alpha = g.shadowAlpha)) }) else null,
+                innerShadow = if (!modern && g.innerAlpha > 0f) ({ com.kyant.backdrop.shadow.InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
                 onDrawSurface = { drawRect(color.copy(alpha = alpha)) },
             )
     } else {
@@ -407,14 +427,19 @@ fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape): Modifier
             else -> androidx.compose.ui.graphics.SolidColor(white.copy(alpha = g.edgeAlpha * 0.6f))
         }
         val fill = color.copy(alpha = if (reduced) 0.92f else maxOf(alpha, 0.6f))
-        (if (g.shadowRadius > 0f && g.shadowAlpha > 0f) shadow((g.shadowRadius / 2f).dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = g.shadowAlpha), spotColor = Color.Black.copy(alpha = g.shadowAlpha)) else this)
+        val shadowMod = when {
+            modern -> this
+            g.shadowRadius > 0f && g.shadowAlpha > 0f -> shadow((g.shadowRadius / 2f).dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = g.shadowAlpha), spotColor = Color.Black.copy(alpha = g.shadowAlpha))
+            else -> this
+        }
+        shadowMod
             .clip(shape)
             .background(fill)
             // The inner glow: a soft light along the top edge, g.innerRadius deep.
             .drawBehind {
-                if (g.innerAlpha > 0f && g.innerRadius > 0f) drawRect(Brush.verticalGradient(listOf(white.copy(alpha = g.innerAlpha), Color.Transparent), endY = g.innerRadius.dp.toPx()))
+                if (!modern && g.innerAlpha > 0f && g.innerRadius > 0f) drawRect(Brush.verticalGradient(listOf(white.copy(alpha = g.innerAlpha), Color.Transparent), endY = g.innerRadius.dp.toPx()))
             }
-            .then(if (g.edgeWidth > 0f) Modifier.border(g.edgeWidth.dp, edgeBrush, shape) else Modifier)
+            .then(if (!modern && g.edgeWidth > 0f) Modifier.border(g.edgeWidth.dp, edgeBrush, shape) else Modifier)
     }
 }
 
@@ -429,7 +454,12 @@ fun overlayColor(base: Color = MaterialTheme.colorScheme.surfaceContainerHigh): 
     return base.copy(alpha = maxOf(surfaceAlpha(prefs.glassTint), 0.95f))
 }
 
-/** The light rim of a glass overlay; nothing for Material. */
+/** The light rim of a glass overlay; nothing for Material or Modern (borderless). */
 @Composable
-fun overlayRim(shape: Shape): Modifier = if (glassLook(LookGroup.Overlays)) Modifier.border(1.dp, rimColor, shape) else Modifier
+fun overlayRim(shape: Shape): Modifier =
+    if (!io.max.paperplay.ui.theme.LocalModernTokens.current.enabled && glassLook(LookGroup.Overlays)) {
+        Modifier.border(1.dp, rimColor, shape)
+    } else {
+        Modifier
+    }
 

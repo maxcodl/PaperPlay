@@ -95,6 +95,26 @@ fun ProfileScreen(
     recents: List<io.max.paperplay.ui.state.SongUi> = emptyList(),
     onPlay: (List<io.max.paperplay.ui.state.SongUi>, Int) -> Unit = { _, _ -> },
 ) {
+    if (io.max.paperplay.ui.isPhone) {
+        AndroidProfileScreen(
+            songs = songs,
+            favorites = favorites,
+            playlists = playlists,
+            conn = conn,
+            prefs = prefs,
+            mainChatTitle = mainChatTitle,
+            onSettings = onSettings,
+            onTasks = onTasks,
+            onLibraryTab = onLibraryTab,
+            bottomPadding = bottomPadding,
+            modifier = modifier,
+            scan = scan,
+            runningTasks = runningTasks,
+            updates = updates,
+            backend = backend,
+        )
+        return
+    }
     var stats by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ProfileStats?>(null) }
     androidx.compose.runtime.LaunchedEffect(backend) {
         // Also after a sync brought another device's listening; at most every 2 s while the library changes.

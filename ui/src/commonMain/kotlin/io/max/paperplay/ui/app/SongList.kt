@@ -1,4 +1,4 @@
-﻿package io.max.paperplay.ui.app
+package io.max.paperplay.ui.app
 
 import io.max.paperplay.ui.theme.motionItem
 import io.max.paperplay.ui.components.AppIcon
@@ -193,7 +193,7 @@ fun SongList(
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 shape = appShape(16.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer,
-                tonalElevation = 2.dp,
+                tonalElevation = if (io.max.paperplay.ui.theme.LocalModernTokens.current.enabled) 0.dp else 2.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),

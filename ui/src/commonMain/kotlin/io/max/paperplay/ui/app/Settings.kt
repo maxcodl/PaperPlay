@@ -3,6 +3,8 @@
 package io.max.paperplay.ui.app
 
 import io.max.paperplay.ui.components.AppIcon
+import io.max.paperplay.ui.components.ModernSurfaceTier
+import io.max.paperplay.ui.components.modernSurface
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -128,9 +130,19 @@ private fun SettingsScreen(
     page: String?, stack: MutableList<String>, prefs: UiPrefs, conn: ConnectionUi, songCount: Int, backend: CoreBackend,
     onRestore: () -> Unit, onExit: () -> Unit, bottomPadding: Dp, deep: Boolean,
 ) {
+    val goBack: () -> Unit = { if (stack.isEmpty() || (deep && stack.size <= 1)) onExit() else stack.removeAt(stack.lastIndex) }
+    if (page == "stats" && isPhone) {
+        AndroidStatsScreen(
+            backend = backend,
+            onBack = goBack,
+            onStartListening = onExit,
+            bottomPadding = bottomPadding,
+        )
+        return
+    }
     val title = categories.firstOrNull { it.id == page }?.title ?: settingsPageTitle(page) ?: "Settings"
     Column(Modifier.fillMaxSize()) {
-        BackTopBar(title, onBack = { if (stack.isEmpty() || (deep && stack.size <= 1)) onExit() else stack.removeAt(stack.lastIndex) }) {
+        BackTopBar(title, onBack = goBack) {
             val loggedIn by backend.account.loggedIn.collectAsState()
             if (page == "channels" && loggedIn) IconButton({ stack.add("index") }) { AppIcon(Icons.Rounded.Forum, "Your chats and channels") }
             if (page == "eq") EqualizerTopBarActions(backend)
@@ -171,14 +183,20 @@ private fun SettingsList(prefs: UiPrefs, stack: MutableList<String>) {
         PillField(query, { query = it }, "Search settings")
         Spacer(Modifier.height(12.dp))
         if (q.isEmpty()) {
-            Row(
+            val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
+            val profileCardMod = if (tokens.enabled) {
+                Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    .modernSurface(ModernSurfaceTier.Card, appShape(28.dp), LookGroup.Cards)
+            } else {
                 Modifier.fillMaxWidth().padding(bottom = 12.dp).partSurface(LookGroup.Cards, MaterialTheme.colorScheme.surfaceContainerLow, appShape(28.dp))
-                    .clickableRow { stack.add("profile") }.padding(horizontal = 20.dp, vertical = 16.dp),
+            }
+            Row(
+                profileCardMod.clickableRow { stack.add("profile") }.padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Avatar(prefs.profilePhoto, prefs.profileName, 60.dp)
-                Text(prefs.profileName, Modifier.weight(1f).padding(start = 16.dp), style = MaterialTheme.typography.titleLarge)
-                AppIcon(Icons.Rounded.ChevronRight, null)
+                Text(prefs.profileName, Modifier.weight(1f).padding(start = 16.dp), style = MaterialTheme.typography.titleLarge, color = if (tokens.enabled) tokens.onGlass else androidx.compose.ui.graphics.Color.Unspecified)
+                AppIcon(Icons.Rounded.ChevronRight, null, tint = if (tokens.enabled) tokens.onGlassMuted else MaterialTheme.colorScheme.onSurface)
             }
         }
         val tour = io.max.paperplay.ui.LocalAppEnv.current?.showTour
@@ -231,6 +249,7 @@ internal fun SettingsPage(
     fun pref(k: String) = backend.pref(k)
     when (id) {
         "style" -> {
+            if (isPhone) UiStyleSettings(prefs)
             SectionLabel("Theme")
             ChoiceRow(ThemeMode.entries, prefs.themeMode, { it.label }, prefs::putThemeMode)
             SectionLabel("Icons")
@@ -524,6 +543,16 @@ internal fun SettingsPage(
             if (devUnlocked) {
                 SectionLabel("Developer")
                 NavRow("Motion Lab", "Live-tune motion tokens and inspect frame timings", Icons.Rounded.Animation) { stack.add("motion_lab") }
+                val previewMode by uiPreviewOverride.collectAsState()
+                DropdownRow(
+                    title = "Profile & Stats preview",
+                    selected = previewMode,
+                    options = UiPreviewOverride.entries,
+                    label = { it.label },
+                    onSelect = { uiPreviewOverride.value = it },
+                    icon = Icons.Rounded.Visibility,
+                    subtitle = "In-memory UI state override for Profile & Stats without touching your data",
+                )
             }
             if (isPhone && devUnlocked) {
                 val chain by backend.sinkChain.collectAsState()

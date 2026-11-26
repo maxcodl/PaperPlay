@@ -88,7 +88,26 @@ fun HomeScreen(
     name: String = "",
     /** False until the lists Home shows have all arrived; the page waits for it so it does not change while it animates in. */
     warm: Boolean = true,
+    onProfile: (() -> Unit)? = null,
+    onLibraryTab: ((Int) -> Unit)? = null,
 ) {
+    if (io.max.paperplay.ui.theme.LocalModernTokens.current.enabled && io.max.paperplay.ui.isPhone) {
+        ModernHomeScreen(
+            lib = lib,
+            home = home,
+            favorites = favorites,
+            currentId = currentId,
+            actions = actions,
+            onOpen = onOpen,
+            onProfile = onProfile,
+            onLibraryTab = onLibraryTab,
+            bottomPadding = bottomPadding,
+            modifier = modifier,
+            name = name,
+            warm = warm,
+        )
+        return
+    }
     val songs = (lib.songs as? Load.Ready)?.value.orEmpty()
     val readTelegram = LocalTelegramLists.current
     val telegram = readTelegram()
@@ -330,14 +349,20 @@ fun StatusToast(conn: ConnectionUi, scanState: State<ScanUi?>, songCount: Int, t
         enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
         exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
     ) {
+        val tokens = io.max.paperplay.ui.theme.LocalModernTokens.current
         val scheme = MaterialTheme.colorScheme
         val bg = androidx.compose.ui.graphics.lerp(tint, scheme.onSurface, 0.16f)
-        val fg = if (bg.luminance() < 0.5f) Color.White else Color.Black
+        val fg = if (tokens.enabled) tokens.onGlass else if (bg.luminance() < 0.5f) Color.White else Color.Black
+        val toastMod = if (tokens.enabled) {
+            io.max.paperplay.ui.components.modernSurfaceStatic(tokens.overlayBg, RoundedCornerShape(16.dp))
+        } else {
+            Modifier.toastSurface(bg, fg)
+        }
         Column(
             Modifier.padding(horizontal = 16.dp).widthIn(max = 440.dp)
                 .offset { androidx.compose.ui.unit.IntOffset(offset.toInt(), 0) }
                 .graphicsLayer { alpha = (1f - kotlin.math.abs(offset) / 600f).coerceIn(0f, 1f) }
-                .toastSurface(bg, fg)
+                .then(toastMod)
                 .pointerInput(key) {
                     detectHorizontalDragGestures(
                         // On dismiss the offset stays so the toast keeps sliding out; it resets when the toast comes back.

@@ -76,7 +76,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -112,6 +111,7 @@ import io.max.paperplay.ui.previewSongs
 import io.max.paperplay.ui.state.PlaybackUiState
 import io.max.paperplay.ui.state.RepeatUi
 import io.max.paperplay.ui.state.SongUi
+import io.max.paperplay.ui.theme.LocalReducedTransparency
 import io.max.paperplay.ui.theme.Motion
 import io.max.paperplay.ui.theme.motionTween
 import io.max.paperplay.ui.theme.playerEffectFadeSpec
@@ -144,6 +144,8 @@ internal fun ModernFullPlayer(
     onOpenDevices: (() -> Unit)?,
     onOpenStandby: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    dark: Boolean = true,
+    amoled: Boolean = false,
 ) {
     val song = state.current ?: return
     val controller = LocalPlayerTransition.current
@@ -154,8 +156,13 @@ internal fun ModernFullPlayer(
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val sourceLabel = remember(state.current, state.queue) { resolvePlayingFrom(state) }
+    val reduced = LocalReducedTransparency.current
+    val palette = remember(scheme, dark, amoled, reduced) {
+        resolveModernPlayerPalette(scheme, dark = dark, amoled = amoled, reducedTransparency = reduced)
+    }
 
     MaterialTheme(colorScheme = scheme) {
+        CompositionLocalProvider(LocalModernPlayerPalette provides palette) {
         Box(modifier.fillMaxSize()) {
             // Backdrop recorded for real glass blur by GlassPillButton & GlassSplitPill once the sheet settles.
             Box(if (settledGlass) Modifier.fillMaxSize().layerBackdrop(backdrop) else Modifier.fillMaxSize()) {
@@ -226,16 +233,16 @@ internal fun ModernFullPlayer(
                                 ) {
                                     listOf(false to "Queue", true to "Lyrics").forEach { (lyr, name) ->
                                         val sel = showLyrics == lyr
-                                        Text(
-                                            name,
-                                            Modifier
-                                                .clip(appShape(50.dp, CornerArea.Chips))
-                                                .background(if (sel) Color.White.copy(alpha = 0.16f) else Color.Transparent)
-                                                .clickable { onSetShowLyrics(lyr) }
-                                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = if (sel) Color.White else Color.White.copy(alpha = 0.62f),
-                                        )
+                                            Text(
+                                                name,
+                                                Modifier
+                                                    .clip(appShape(50.dp, CornerArea.Chips))
+                                                    .background(if (sel) palette.glassActiveFill else Color.Transparent)
+                                                    .clickable { onSetShowLyrics(lyr) }
+                                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (sel) palette.onPlayer else palette.onPlayerMuted,
+                                            )
                                     }
                                 }
                                 if (showLyrics) {
@@ -254,10 +261,10 @@ internal fun ModernFullPlayer(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         IconButton({ onSetShowQueue(false) }) {
-                                            AppIcon(Icons.Rounded.KeyboardArrowDown, "Back to player", Modifier.size(30.dp), tint = Color.White)
+                                            AppIcon(Icons.Rounded.KeyboardArrowDown, "Back to player", Modifier.size(30.dp), tint = palette.onPlayer)
                                         }
-                                        Text("Queue", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White)
-                                        Text("${state.queue.size} songs", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.7f))
+                                        Text("Queue", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = palette.onPlayer)
+                                        Text("${state.queue.size} songs", style = MaterialTheme.typography.labelMedium, color = palette.onPlayerMuted)
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     QueueList(state, backend, Modifier.weight(1f))
@@ -304,6 +311,7 @@ internal fun ModernFullPlayer(
                 }
             }
         }
+        }
     }
 }
 
@@ -326,6 +334,7 @@ private fun ModernHeader(
     val speed by backend.speed.collectAsState()
     val sleepAt by backend.sleepAt.collectAsState()
     val bitPerfect by backend.bitPerfect.collectAsState()
+    val palette = LocalModernPlayerPalette.current
     var menuOpen by remember { mutableStateOf(false) }
 
     Row(
@@ -333,19 +342,19 @@ private fun ModernHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClose) {
-            AppIcon(Icons.Rounded.KeyboardArrowDown, "Close player", Modifier.size(28.dp), tint = Color.White)
+            AppIcon(Icons.Rounded.KeyboardArrowDown, "Close player", Modifier.size(28.dp), tint = palette.onPlayer)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 "Playing from",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.62f),
+                color = palette.onPlayerMuted,
                 maxLines = 1,
             )
             Text(
                 sourceLabel,
                 style = MaterialTheme.typography.labelLarge,
-                color = Color.White,
+                color = palette.onPlayer,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -355,49 +364,56 @@ private fun ModernHeader(
                 AppIcon(
                     if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
                     if (fullscreen) "Exit full screen" else "Full screen",
-                    tint = Color.White,
+                    tint = palette.onPlayer,
                 )
             }
         }
         Box {
             IconButton({ menuOpen = true }) {
-                AppIcon(Icons.Rounded.Tune, "More controls", tint = Color.White)
+                AppIcon(Icons.Rounded.Tune, "More controls", tint = palette.onPlayer)
             }
-            DropdownMenu(menuOpen, { menuOpen = false }) {
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                shape = appShape(20.dp, CornerArea.Dialogs),
+                containerColor = palette.overlayBg,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+            ) {
                 DropdownMenuItem(
-                    text = { Text("Speed (${speedLabel(speed)})") },
-                    leadingIcon = { AppIcon(Icons.Rounded.Speed, null) },
+                    text = { Text("Speed (${speedLabel(speed)})", color = palette.onPlayer) },
+                    leadingIcon = { AppIcon(Icons.Rounded.Speed, null, tint = palette.onPlayer) },
                     onClick = { menuOpen = false; onOpenSpeed() },
                 )
                 DropdownMenuItem(
-                    text = { Text(if (sleepAt != null) "Sleep timer (on)" else "Sleep timer") },
-                    leadingIcon = { AppIcon(Icons.Outlined.Bedtime, null) },
+                    text = { Text(if (sleepAt != null) "Sleep timer (on)" else "Sleep timer", color = palette.onPlayer) },
+                    leadingIcon = { AppIcon(Icons.Outlined.Bedtime, null, tint = palette.onPlayer) },
                     onClick = { menuOpen = false; onOpenSleep() },
                 )
                 if (backend.hasBass) {
                     DropdownMenuItem(
-                        text = { Text(if (bitPerfect) "Bit-perfect (on)" else "Bit-perfect") },
-                        leadingIcon = { AppIcon(TrueAudioIcon, null) },
+                        text = { Text(if (bitPerfect) "Bit-perfect (on)" else "Bit-perfect", color = palette.onPlayer) },
+                        leadingIcon = { AppIcon(TrueAudioIcon, null, tint = palette.onPlayer) },
                         onClick = { menuOpen = false; backend.setBitPerfect(!bitPerfect) },
                     )
                 }
                 if (onOpenDevices != null) {
                     DropdownMenuItem(
-                        text = { Text("Devices") },
-                        leadingIcon = { AppIcon(Icons.Rounded.Devices, null) },
+                        text = { Text("Devices", color = palette.onPlayer) },
+                        leadingIcon = { AppIcon(Icons.Rounded.Devices, null, tint = palette.onPlayer) },
                         onClick = { menuOpen = false; onOpenDevices.invoke() },
                     )
                 }
                 if (onOpenStandby != null) {
                     DropdownMenuItem(
-                        text = { Text("Standby mode") },
-                        leadingIcon = { AppIcon(Icons.Rounded.NightsStay, null) },
+                        text = { Text("Standby mode", color = palette.onPlayer) },
+                        leadingIcon = { AppIcon(Icons.Rounded.NightsStay, null, tint = palette.onPlayer) },
                         onClick = { menuOpen = false; onOpenStandby.invoke() },
                     )
                 }
             }
         }
-        CompositionLocalProvider(LocalContentColor provides Color.White) {
+        CompositionLocalProvider(LocalContentColor provides palette.onPlayer) {
             SongMenu(song, actions.rowActions(), Icons.Rounded.MoreHoriz, onOutputInfo = onOpenOutputInfo)
         }
     }
@@ -428,6 +444,7 @@ private fun ModernPhoneBody(
         animationSpec = if (controller.standalone || controller.reduceMotion) snap() else playerEffectFadeSpec(),
         label = "modernStage1",
     )
+    val palette = LocalModernPlayerPalette.current
     val outputInfo by backend.outputInfo.collectAsState()
     val badges = remember(song.qualityLabel, song.lossless, outputInfo) {
         resolveQualityBadges(song, outputInfo)
@@ -482,7 +499,7 @@ private fun ModernPhoneBody(
                             modifier = Modifier.basicMarquee(),
                             maxLines = 1,
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
+                            color = palette.onPlayer,
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -495,7 +512,7 @@ private fun ModernPhoneBody(
                                     modifier = Modifier.basicMarquee(),
                                     maxLines = 1,
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = Color.White.copy(alpha = 0.92f),
+                                    color = palette.onPlayer,
                                 )
                             }
                             if (interactive) {
@@ -521,7 +538,7 @@ private fun ModernPhoneBody(
                                         Icons.Outlined.Lyrics,
                                         null,
                                         Modifier.size(20.dp),
-                                        tint = if (onOpenLyrics != null) Color.White else Color.White.copy(alpha = 0.4f),
+                                        tint = if (onOpenLyrics != null) palette.onPlayer else palette.onPlayer.copy(alpha = 0.4f),
                                     )
                                 },
                                 rightContent = {
@@ -531,14 +548,14 @@ private fun ModernPhoneBody(
                                             imageVector = Icons.Rounded.Favorite,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            tint = palette.accent,
                                         )
                                     } else {
                                         AppIcon(
                                             Icons.Rounded.FavoriteBorder,
                                             null,
                                             Modifier.size(20.dp),
-                                            tint = Color.White,
+                                            tint = palette.onPlayer,
                                         )
                                     }
                                 },
@@ -556,7 +573,7 @@ private fun ModernPhoneBody(
                 } else {
                     // Stage 0 placeholder reserves exact height (52dp seek + 4dp gap + 22dp chips) so Stage 1 never jumps layout.
                     Box(Modifier.fillMaxWidth().height(78.dp), contentAlignment = Alignment.CenterStart) {
-                        Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.25f)))
+                        Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(palette.sliderTrack))
                     }
                 }
 
@@ -577,7 +594,7 @@ private fun ModernPhoneBody(
                         shape = appShape(24.dp, CornerArea.Cards),
                         modifier = Modifier.size(width = 76.dp, height = 64.dp),
                     ) {
-                        AppIcon(Icons.Rounded.FastRewind, null, Modifier.size(30.dp), tint = Color.White)
+                        AppIcon(Icons.Rounded.FastRewind, null, Modifier.size(30.dp), tint = palette.onPlayer)
                     }
                     GlassPillButton(
                         onClick = backend::togglePlay,
@@ -589,7 +606,7 @@ private fun ModernPhoneBody(
                             if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             null,
                             Modifier.size(38.dp),
-                            tint = Color.White,
+                            tint = palette.onPlayer,
                         )
                     }
                     GlassPillButton(
@@ -598,16 +615,16 @@ private fun ModernPhoneBody(
                         shape = appShape(24.dp, CornerArea.Cards),
                         modifier = Modifier.size(width = 76.dp, height = 64.dp),
                     ) {
-                        AppIcon(Icons.Rounded.FastForward, null, Modifier.size(30.dp), tint = Color.White)
+                        AppIcon(Icons.Rounded.FastForward, null, Modifier.size(30.dp), tint = palette.onPlayer)
                     }
                 }
 
                 if (showVolume) {
                     val volume by backend.volume.collectAsState()
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        AppIcon(Icons.AutoMirrored.Rounded.VolumeDown, "Quieter", Modifier.size(18.dp), tint = Color.White.copy(alpha = 0.7f))
-                        VolumeBar(volume, backend::setVolume, Color.White, Modifier.weight(1f).padding(horizontal = 10.dp))
-                        AppIcon(Icons.AutoMirrored.Rounded.VolumeUp, "Louder", Modifier.size(18.dp), tint = Color.White.copy(alpha = 0.7f))
+                        AppIcon(Icons.AutoMirrored.Rounded.VolumeDown, "Quieter", Modifier.size(18.dp), tint = palette.onPlayerMuted)
+                        VolumeBar(volume, backend::setVolume, palette.onPlayer, Modifier.weight(1f).padding(horizontal = 10.dp))
+                        AppIcon(Icons.AutoMirrored.Rounded.VolumeUp, "Louder", Modifier.size(18.dp), tint = palette.onPlayerMuted)
                     }
                 }
 
@@ -630,7 +647,7 @@ private fun ModernPhoneBody(
                                 Icons.Rounded.Shuffle,
                                 null,
                                 Modifier.size(20.dp),
-                                tint = if (state.shuffle) toggleOnColor() else Color.White.copy(alpha = 0.85f),
+                                tint = if (state.shuffle) palette.accent else palette.onPlayerMuted,
                             )
                         },
                         rightContent = {
@@ -638,7 +655,7 @@ private fun ModernPhoneBody(
                                 if (state.repeat == RepeatUi.One) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                                 null,
                                 Modifier.size(20.dp),
-                                tint = if (state.repeat != RepeatUi.Off) toggleOnColor() else Color.White.copy(alpha = 0.85f),
+                                tint = if (state.repeat != RepeatUi.Off) palette.accent else palette.onPlayerMuted,
                             )
                         },
                     )
@@ -656,7 +673,7 @@ private fun ModernPhoneBody(
                             EqualizerBoardIcon,
                             null,
                             Modifier.size(22.dp),
-                            tint = if (eqOn) toggleOnColor() else Color.White,
+                            tint = if (eqOn) palette.accent else palette.onPlayer,
                         )
                     }
 
@@ -666,10 +683,10 @@ private fun ModernPhoneBody(
                         onLeftClick = onQueue,
                         onRightClick = { actions.addToPlaylist(setOf(song.id)) },
                         leftContent = {
-                            AppIcon(Icons.AutoMirrored.Rounded.QueueMusic, null, Modifier.size(20.dp), tint = Color.White.copy(alpha = 0.88f))
+                            AppIcon(Icons.AutoMirrored.Rounded.QueueMusic, null, Modifier.size(20.dp), tint = palette.onPlayer)
                         },
                         rightContent = {
-                            AppIcon(Icons.AutoMirrored.Rounded.PlaylistAdd, null, Modifier.size(20.dp), tint = Color.White.copy(alpha = 0.88f))
+                            AppIcon(Icons.AutoMirrored.Rounded.PlaylistAdd, null, Modifier.size(20.dp), tint = palette.onPlayer)
                         },
                     )
                 }
@@ -713,6 +730,7 @@ private fun ModernArtwork(
     val controller = LocalPlayerTransition.current
     val coverBounds = LocalCoverBounds.current
     val coverShape = appShape(24.dp, CornerArea.Covers)
+    val palette = LocalModernPlayerPalette.current
 
     Column(
         modifier = modifier.playerSheetDrag(
@@ -736,7 +754,7 @@ private fun ModernArtwork(
                     Modifier
                         .size(40.dp, 5.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(Color.White.copy(alpha = 0.32f)),
+                        .background(palette.grabberColor),
                 )
             }
         }
@@ -745,7 +763,6 @@ private fun ModernArtwork(
                 .size(size)
                 .registerFullCoverBounds(coverBounds)
                 .graphicsLayer { alpha = if (controller.isCoverFlightActive(coverBounds)) 0f else 1f }
-                .shadow(24.dp, coverShape, ambientColor = Color.Black, spotColor = Color.Black)
                 .clip(coverShape),
         ) {
             Crossfade(
@@ -755,16 +772,17 @@ private fun ModernArtwork(
             ) { (uri, id) ->
                 CoverImage(uri, id, size = size, radius = 24.dp)
             }
-            // Faint inner vignette so the cover sits softly into the blurred backdrop.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.78f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.22f),
+            if (palette.coverVignette != Color.Transparent) {
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.78f to Color.Transparent,
+                            1f to palette.coverVignette,
+                        ),
                     ),
-                ),
-            )
+                )
+            }
         }
     }
 }
@@ -776,6 +794,7 @@ private fun ModernProgress(song: SongUi, state: PlaybackUiState, backend: Player
     val style = LocalUiPrefs.current?.progressBarStyle ?: ProgressBarStyle.SQUIGGLY_WAVE
     val label = formatDuration(pos.positionMs / 1000)
     val longPressLabel: (Float) -> String = { fraction -> formatDuration((total * fraction / 1000L).toLong()) }
+    val palette = LocalModernPlayerPalette.current
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         when (style) {
@@ -788,6 +807,9 @@ private fun ModernProgress(song: SongUi, state: PlaybackUiState, backend: Player
                 label = label,
                 longPressLabel = longPressLabel,
                 animateWave = animateWave,
+                activeColor = palette.sliderActive,
+                trackColor = palette.sliderTrack,
+                bufferedColor = palette.sliderBuffered,
             )
             ProgressBarStyle.AURORA_WAVE -> AuroraSeek(
                 progress = { pos.progress(state.durationMs) },
@@ -799,6 +821,8 @@ private fun ModernProgress(song: SongUi, state: PlaybackUiState, backend: Player
                 label = label,
                 longPressLabel = longPressLabel,
                 animateWave = animateWave,
+                trackColor = palette.sliderTrack,
+                bufferedColor = palette.sliderBuffered,
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -806,7 +830,7 @@ private fun ModernProgress(song: SongUi, state: PlaybackUiState, backend: Player
                 Text(
                     formatDuration(pos.positionMs / 1000),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = palette.onPlayer,
                     maxLines = 1,
                 )
             }
@@ -814,7 +838,7 @@ private fun ModernProgress(song: SongUi, state: PlaybackUiState, backend: Player
                 Text(
                     formatDuration(total / 1000),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = palette.onPlayer,
                     maxLines = 1,
                 )
             }
@@ -833,8 +857,19 @@ private fun ModernPreviewHost(
     error: String? = null,
     outputInfo: OutputInfo? = null,
     dark: Boolean = true,
+    amoled: Boolean = false,
 ) = PreviewFrame(dark = dark) {
-    CompositionLocalProvider(LocalUiPrefs provides modernPreviewPrefs()) {
+    val prefs = remember(dark, amoled) {
+        UiPrefs({ k ->
+            when (k) {
+                "player_style" -> "modern"
+                "ui_style" -> "modern"
+                "amoled" -> if (amoled) "true" else "false"
+                else -> null
+            }
+        }, { _, _ -> })
+    }
+    CompositionLocalProvider(LocalUiPrefs provides prefs) {
         val state = PlaybackUiState(current = song, playing = playing, durationMs = song.durationSec * 1000L, queue = previewSongs, queueIndex = 0)
         val backend = FakePlayerControls(
             position = io.max.paperplay.ui.state.PositionUi(103_000, 160_000),
