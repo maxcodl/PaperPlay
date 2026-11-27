@@ -438,6 +438,16 @@ internal class MpvPlayerEngine(private val lib: MpvLib, options: Map<String, Str
     override fun setEngineOptions(bits: Int) { crossfeed = bits and 4 != 0; cmd { applyFilters() } }
     override fun setCorrectionProfile(text: String?) { profile = text?.let { CorrectionProfile.parse(it) }; cmd { applyFilters() } }
 
+    override fun setOutputDevice(id: String?) {
+        cmd {
+            chosenOutput = id?.let { want -> WindowsOutputDevice.all().firstOrNull { it.id == want } }
+            // A device that is gone (unpaired, unplugged) falls back to Windows' default rather than to silence.
+            setProp("audio-device", chosenOutput?.let { "wasapi/${it.id}" } ?: "auto")
+            PlayLog.log("mpv", "output device: ${chosenOutput?.name ?: "Windows default"}")
+            publishInfo()
+        }
+    }
+
     override fun setBitPerfect(on: Boolean) {
         setExclusiveOutput(on)
     }

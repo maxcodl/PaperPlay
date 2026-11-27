@@ -361,6 +361,7 @@ class PlaybackController(
     fun setEarphoneCorrection(text: String?) = engine.setEarphoneCorrection(text)
     fun setEngineOptions(bits: Int) = engine.setEngineOptions(bits)
     fun setExclusiveOutput(on: Boolean) = engine.setExclusiveOutput(on)
+    fun setOutputDevice(id: String?) = engine.setOutputDevice(id)
     fun setCorrectionProfile(text: String?) = engine.setCorrectionProfile(text)
     fun setSpeed(speed: Float) = engine.setSpeed(speed)
     fun setNormalize(on: Boolean) = engine.setNormalize(on)

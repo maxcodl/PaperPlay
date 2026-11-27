@@ -60,6 +60,8 @@ class LazyPlayerEngine(
     private var pendingOptions: Int? = null
     private var pendingBitPerfect: Boolean? = null
     private var pendingExclusive: Boolean? = null
+    private var outputSet = false
+    private var pendingOutput: String? = null
     private var pendingProfile: String? = null
     private var profileSet = false
     private var pendingSpeed: Float? = null
@@ -97,6 +99,7 @@ class LazyPlayerEngine(
             pendingOptions?.let { engine.setEngineOptions(it) }
             pendingBitPerfect?.let { engine.setBitPerfect(it) }
             pendingExclusive?.let { engine.setExclusiveOutput(it) }
+            if (outputSet) engine.setOutputDevice(pendingOutput)
             if (profileSet) engine.setCorrectionProfile(pendingProfile)
             pendingSpeed?.let { engine.setSpeed(it) }
             pendingNormalize?.let { engine.setNormalize(it) }
@@ -220,6 +223,11 @@ class LazyPlayerEngine(
     override fun setExclusiveOutput(on: Boolean) {
         pendingExclusive = on
         real?.setExclusiveOutput(on)
+    }
+
+    override fun setOutputDevice(id: String?) {
+        outputSet = true; pendingOutput = id
+        real?.setOutputDevice(id)
     }
 
     override fun setCorrectionProfile(text: String?) {

@@ -131,6 +131,9 @@ interface PlayerControls {
     val bitPerfectStatus: StateFlow<io.max.paperplay.player.BitPerfectStatus>
         get() = MutableStateFlow(io.max.paperplay.player.BitPerfectStatus.Off)
     fun setBitPerfect(on: Boolean) {}
+    /** PC: the Windows output picked in the app (endpoint id), or null to follow the Windows default. */
+    val outputChoice: StateFlow<String?> get() = MutableStateFlow(null)
+    fun setOutputChoice(id: String?) {}
     /** When true, 31-band parametric EQ runs at native rate/bit-depth in USB Exclusive mode (reported as USB Direct + EQ). */
     val allowEqInUsbExclusive: StateFlow<Boolean> get() = MutableStateFlow(true)
     fun setAllowEqInUsbExclusive(allow: Boolean) {}
@@ -1006,6 +1009,14 @@ class CoreBackend(val services: AppServices) : PlayerControls {
         player.setCorrectionProfile(correctionProfile.value.takeIf { it.isNotBlank() && !on })
         if (!io.max.paperplay.ui.isPhone) player.setBitPerfect(on)
     }
+    override val outputChoice = MutableStateFlow(repo.pref("pc_output")?.takeIf { it.isNotBlank() })
+
+    override fun setOutputChoice(id: String?) {
+        outputChoice.value = id
+        repo.savePref("pc_output", id.orEmpty())
+        if (playerStarted.value) player.setOutputDevice(id)
+    }
+
     fun setPcEngine(engine: String) { services.platform.settings.put("pc_engine", engine) }
 
     /** PC only: previous, play or pause and next under the taskbar preview. On unless switched off. */
@@ -1522,6 +1533,7 @@ class CoreBackend(val services: AppServices) : PlayerControls {
                 p.setEngineOptions(eqOptions.value)
             }
             if (io.max.paperplay.ui.isPhone) p.dacController?.setUsbExclusive(bp) else p.setBitPerfect(bp)
+            if (!io.max.paperplay.ui.isPhone) outputChoice.value?.let { p.setOutputDevice(it) }
             p.dacController?.setSinkChain(sinkChain.value)
             if (!bp) correctionProfile.value.takeIf { it.isNotBlank() }?.let { p.setCorrectionProfile(it) }
             if (!systemVolume && volume.value != 1f) p.setVolume(volume.value)

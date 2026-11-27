@@ -410,6 +410,7 @@ fun PlayerBar(
             if (!wide) tools()
             if (shown("devices")) extras()
             var showEq by remember { mutableStateOf(false) }
+            if (backend != null) OutputPickerButton(backend, off, sz)
             if (backend != null && backend.hasBass) {
                 // Same kind of button as the equalizer: one tap switches untouched, exclusive output on or off.
                 val bitPerfect by backend.bitPerfect.collectAsState()
