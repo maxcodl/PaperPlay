@@ -233,7 +233,7 @@ private fun AutoEqEntryRow(
             )
         }
         TextButton(onClick = onPreview) {
-            Text(if (isApplied) "Active" else "Preview")
+            Text(if (isApplied) "Turn off" else "Preview")
         }
         Button(onClick = onApply) {
             Text("Apply")

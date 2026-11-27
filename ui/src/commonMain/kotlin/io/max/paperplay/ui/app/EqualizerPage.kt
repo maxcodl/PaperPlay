@@ -484,6 +484,15 @@ internal fun EqualizerScreenBody(
                         }
                     },
                     onPreviewEntry = { entry ->
+                        // Tapping the active one again takes it off: back to a flat curve.
+                        if (autoAppliedId == entry.id) {
+                            autoAppliedId = null
+                            val flat = io.max.paperplay.player.ParametricEqProfile.flat10()
+                            updateProfile(flat, enableIfActive = true)
+                            selectedBandId = flat.bands.firstOrNull()?.id ?: -1
+                            statusNotice = "Removed ${entry.model}"
+                            return@EqAutoEqSection
+                        }
                         autoAppliedId = entry.id
                         val prof = entry.toProfile()
                         updateProfile(prof, enableIfActive = true)
