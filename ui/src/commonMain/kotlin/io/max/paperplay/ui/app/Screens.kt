@@ -281,12 +281,28 @@ fun DetailScreen(
                 .map { t -> ghost(t, t.source_added_at?.let { d -> songs.count { it.addedAt < d } } ?: songs.size) }
         }
     }
+    // What "Delete" takes on an album or artist page: only this exact pairing. An album is its own name with its own artist (the page
+    // already holds just that); an artist is the songs credited to exactly this name, so a song shared with other artists is kept.
+    val groupDelete = remember(detail, rawSongs) {
+        when (detail) {
+            is Detail.Album -> rawSongs
+            is Detail.Artist -> {
+                // Same cleaned names as the Artists page: a song goes only when its artists are exactly this entry's artists.
+                val want = creditArtists(detail.name).map { it.lowercase() }.toSet()
+                rawSongs.filter { creditArtists(it.artist).map { n -> n.lowercase() }.toSet() == want }
+            }
+            else -> emptyList()
+        }
+    }
     val mixSnack = remember { androidx.compose.material3.SnackbarHostState() }
     Box(modifier) {
     Column(Modifier.fillMaxSize()) {
         BackTopBar(name, onBack) {
             if (detail !is Detail.Playlist && rawSongs.isNotEmpty()) {
                 IconButton({ actions.notice(if (backend.togglePinAll(rawSongs.map { it.id })) "Keeping this list on this device" else "List no longer kept on this device") }) { AppIcon(Icons.Rounded.PushPin, "Keep on this device") }
+            }
+            if ((detail is Detail.Album || detail is Detail.Artist) && groupDelete.isNotEmpty()) {
+                IconButton({ dialog = "deleteGroup" }) { AppIcon(Icons.Rounded.Delete, if (detail is Detail.Album) "Delete album" else "Delete artist") }
             }
             if (detail is Detail.Playlist) {
                 IconButton({ actions.notice(if (backend.togglePinAll(rawSongs.map { it.id })) "Keeping this playlist on this device" else "Playlist no longer kept on this device") }) { AppIcon(Icons.Rounded.PushPin, "Pin for offline") }
@@ -353,6 +369,22 @@ fun DetailScreen(
     }
     if (reorderOpen && detail is Detail.Playlist) ReorderButton(backend, detail.id, rawSongs, external = true) { reorderOpen = false }
     if (missingSheet && missing.isNotEmpty()) MissingSheet(backend, store, missing, name, { missingSheet = false }) { bump++ }
+    if (dialog == "deleteGroup" && groupDelete.isNotEmpty()) {
+        val kept = rawSongs.size - groupDelete.size
+        val what = if (detail is Detail.Album) "the album \"$name\"" else "\"$name\""
+        AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text("Delete ${groupDelete.size} ${if (groupDelete.size == 1) "song" else "songs"}?") },
+            text = {
+                Text(
+                    "Deletes every song of $what from Telegram (your main chat) and from your library. This cannot be undone." +
+                        if (kept > 0) " $kept ${if (kept == 1) "song" else "songs"} shared with other artists stay." else "",
+                )
+            },
+            confirmButton = { TextButton({ backend.deleteSongs(groupDelete.map { it.id }) { actions.notice(it) }; dialog = null; onBack() }) { Text("Delete") } },
+            dismissButton = { TextButton({ dialog = null }) { Text("Cancel") } },
+        )
+    }
     if (detail is Detail.Playlist) {
         when (dialog) {
             "rename" -> {
