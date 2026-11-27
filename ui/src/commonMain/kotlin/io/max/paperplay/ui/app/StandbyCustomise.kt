@@ -95,7 +95,7 @@ private val customChoices = listOf(0xFF5CC8FF, 0xFFFF8A5C, 0xFF7BE495, 0xFFE58CF
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun StandbyCustomiseSheet(p: StandbyPrefs, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = !io.max.paperplay.ui.isPhone)) {
         io.max.paperplay.ui.StandbyHideBars()
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Standby mode", style = MaterialTheme.typography.titleLarge)

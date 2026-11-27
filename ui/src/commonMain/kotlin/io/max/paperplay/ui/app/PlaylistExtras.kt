@@ -122,7 +122,7 @@ internal fun MissingSheet(backend: CoreBackend, store: ImportStore, missing: Lis
     val mine by androidx.compose.runtime.produceState(emptyMap<String, List<io.max.paperplay.core.library.Song>>(), missing) {
         value = withContext(Dispatchers.Default) { runCatching { reviewCandidates(store, missing) }.getOrDefault(emptyMap()) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = !io.max.paperplay.ui.isPhone)) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${missing.size} not matched", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             IconButton({

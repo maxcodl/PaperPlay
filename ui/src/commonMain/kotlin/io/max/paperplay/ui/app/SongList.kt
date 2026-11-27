@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -382,9 +383,10 @@ fun SongList(
             dismissButton = { TextButton({ confirmBulkDelete = false }) { Text("Cancel") } },
         )
         if (sortSheet) {
-            ModalBottomSheet(onDismissRequest = { sortSheet = false }) {
+            ModalBottomSheet(onDismissRequest = { sortSheet = false }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = !io.max.paperplay.ui.isPhone)) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                    // Scrolls inside the sheet, so a short window still reaches every sort option with the wheel.
+                    Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text("Filter", style = MaterialTheme.typography.titleLarge)
