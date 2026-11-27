@@ -233,7 +233,7 @@ fun main(args: Array<String>) {
             }
         }
     }
-    WindowsMedia.start(::handleMediaKey)
+    WindowsMedia.start({ liveServices?.playback?.nowPlayingStatic?.value?.isPlaying == true }, ::handleMediaKey)
     application {
         val dir = File(System.getenv("APPDATA") ?: System.getProperty("user.home"), "PaperPlay")
         val target = desktopRestoreTarget(dir)
@@ -404,6 +404,25 @@ fun main(args: Array<String>) {
             androidx.compose.runtime.LaunchedEffect(window) {
                 WindowsTitleBar.applySurfaceColor(window, DEFAULT_DARK_SURFACE_ARGB)
                 WindowsTitleBar.reapply(window)
+            }
+            // Windows' media controls: the song in the media flyout, and the media keys go to whichever app played last.
+            androidx.compose.runtime.LaunchedEffect(window) {
+                while (liveServices == null) kotlinx.coroutines.delay(500)
+                val sv = liveServices ?: return@LaunchedEffect
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { WindowsSmtc.install(window, ::handleMediaKey) }
+                if (!ok) return@LaunchedEffect
+                var lastSong: Any? = Unit
+                sv.playback.nowPlayingStatic.collect { np ->
+                    val s = np.song
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val tag = s?.let { listOf(it.unique_id, it.title, it.artist, it.album, it.cover_path, it.cover_url) }
+                        if (tag != lastSong) {
+                            lastSong = tag
+                            if (s != null) WindowsSmtc.setSong(s.title, s.artist, s.album, s.cover_path ?: s.cover_url)
+                        }
+                        WindowsSmtc.setPlaying(np.isPlaying, s != null)
+                    }
+                }
             }
             // Taskbar preview buttons (previous, play or pause, next); a switch in Settings turns them off, from the next start.
             androidx.compose.runtime.LaunchedEffect(window) {
