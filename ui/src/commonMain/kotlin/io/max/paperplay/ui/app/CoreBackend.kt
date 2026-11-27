@@ -243,11 +243,7 @@ class CoreBackend(val services: AppServices) : PlayerControls {
 
     /** Albums and artists are grouped only while their tab or page is open. */
     val albums: StateFlow<List<GroupUi>> = repo.allSongs().map { songs ->
-        songs.filter { it.album.isNotBlank() }.groupBy { it.album }.entries.sortedBy { it.key.lowercase() }.flatMap { (name, list) ->
-            io.max.paperplay.core.library.splitAlbum(list) { it.artist }.map { (owner, part) ->
-                GroupUi(if (owner == null) name else "$name | $owner", name, albumSubtitle(part), covers(part), owner)
-            }
-        }
+        albumGroups(songs)
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val artists: StateFlow<List<GroupUi>> = repo.allSongs().map { artistGroups(it) }
@@ -1730,7 +1726,11 @@ class CoreBackend(val services: AppServices) : PlayerControls {
         .stateIn(scope, SharingStarted.Eagerly, false)
 
     // Reading
-    fun album(name: String, owner: String? = null): Flow<List<SongUi>> = repo.album(name).map { list ->
+    /** An album as the Albums page shows it: every song whose cleaned album name is [name], then the part [owner] has, if split. */
+    fun album(name: String, owner: String? = null): Flow<List<SongUi>> = repo.allSongs().map { all ->
+        val want = io.max.paperplay.core.metadata.albumKey(name)
+        all.filter { it.album.isNotBlank() && io.max.paperplay.core.metadata.albumKey(it.album) == want }.sortedBy { it.title }
+    }.map { list ->
         if (owner == null) list
         else io.max.paperplay.core.library.splitAlbum(list) { it.artist }.firstOrNull { it.first == owner }?.second ?: list
     }
@@ -2190,20 +2190,54 @@ internal class LazySongs(private val rows: List<Song>, private val extra: List<S
     override fun hashCode() = System.identityHashCode(this)
 }
 
+/** The cleaned artists of a credit ("Ruka, Laala Manaka (CV: X)" -> Ruka, Laala Manaka); the whole credit cleaned when it does not split. */
+internal fun creditArtists(credit: String): List<String> =
+    io.max.paperplay.core.metadata.splitArtistsClean(credit).ifEmpty { listOf(io.max.paperplay.core.metadata.cleanArtistName(credit)).filter { it.isNotBlank() } }
+
+/** Songs, newest post, plays and favourites of a group, for sorting and filters. */
+private fun stats(list: List<Song>, base: GroupUi): GroupUi =
+    base.copy(count = list.size, addedAt = list.maxOf { it.date }, plays = list.sumOf { it.plays }, favorites = list.count { it.favorite })
+
+private fun songsLabel(n: Int) = if (n == 1) "1 song" else "$n songs"
+
+/**
+ * Artists by cleaned name: each artist of a shared credit gets the song (so "A & B" counts for A and for B), and each shared
+ * credit also gets an entry of its own, marked [GroupUi.combined], which the Artists page shows only when asked.
+ */
 private fun artistGroups(songs: List<Song>): List<GroupUi> {
-    val byName = LinkedHashMap<String, Pair<String, MutableList<Song>>>()
+    val single = LinkedHashMap<String, Pair<String, MutableList<Song>>>()
+    val shared = LinkedHashMap<String, Pair<String, MutableList<Song>>>()
+    val alone = HashSet<String>()
     for (s in songs) {
-        val names = io.max.paperplay.core.metadata.splitArtists(s.artist).ifEmpty { listOf(s.artist) }.filter { it.isNotBlank() }
-        for (n in names) byName.getOrPut(n.lowercase()) { n to mutableListOf() }.second += s
+        val names = creditArtists(s.artist)
+        for (n in names) single.getOrPut(n.lowercase()) { n to mutableListOf() }.second += s
+        if (names.size == 1) alone += names[0].lowercase()
+        if (names.size > 1) names.joinToString(" & ").let { c -> shared.getOrPut(c.lowercase()) { c to mutableListOf() }.second += s }
     }
-    return byName.values.sortedBy { it.first.lowercase() }.map { (name, list) -> GroupUi(name, name, "${list.size} songs", covers(list)) }
+    fun make(map: Map<String, Pair<String, MutableList<Song>>>, combined: Boolean) = map.values.map { (name, list) ->
+        stats(list, GroupUi(if (combined) "combo:$name" else name, name, songsLabel(list.size), covers(list), combined = combined, solo = combined || name.lowercase() in alone))
+    }
+    return (make(single, false) + make(shared, true)).sortedBy { io.max.paperplay.core.metadata.nameSortKey(it.name) }
+}
+
+/** Albums by cleaned name (so `"Title` and `Title - Single` are one album), split by artist where two artists share a name. */
+private fun albumGroups(songs: List<Song>): List<GroupUi> {
+    val byKey = LinkedHashMap<String, MutableList<Song>>()
+    for (s in songs) if (s.album.isNotBlank()) byKey.getOrPut(io.max.paperplay.core.metadata.albumKey(s.album)) { mutableListOf() } += s
+    return byKey.values.flatMap { list ->
+        // The spelling most of its songs use ("Wake Up!" over one "WAKE UP!").
+        val name = list.groupingBy { io.max.paperplay.core.metadata.cleanAlbumName(it.album) }.eachCount().maxBy { it.value }.key
+        io.max.paperplay.core.library.splitAlbum(list) { it.artist }.map { (owner, part) ->
+            stats(part, GroupUi(if (owner == null) name else "$name | $owner", name, albumSubtitle(part), covers(part), owner))
+        }
+    }.sortedBy { io.max.paperplay.core.metadata.nameSortKey(it.name) }
 }
 
 private fun covers(songs: List<Song>): List<String?> = songs.mapNotNull { it.cover_path }.distinct().take(4)
 
 private fun albumSubtitle(list: List<Song>): String {
-    val artists = list.map { it.artist }.distinct()
-    return (if (artists.size == 1) artists[0] else "Various artists") + " · ${list.size} songs"
+    val artists = list.map { creditArtists(it.artist).joinToString(", ") }.distinct()
+    return (if (artists.size == 1) artists[0] else "Various artists") + " · " + songsLabel(list.size)
 }
 
 private val LOSSLESS = setOf("flac", "alac", "wav", "aiff", "aif", "ape", "wv")

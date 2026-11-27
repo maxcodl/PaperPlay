@@ -102,10 +102,18 @@ class LibraryRepository(val repo: LibraryRepo, private val clock: () -> Long) {
         }.executeAsList()
     }
     fun album(name: String): Flow<List<Song>> = watch { songs.albumRows(name).executeAsList().sortedBy { it.title } }
-    /** Every song [name] is credited on, alone or with others ("A, B" counts for A and for B). */
+    /**
+     * Every song [name] is credited on, alone or with others ("A, B" counts for A and for B), by cleaned names. A shared credit
+     * such as "A & B" (the Artists page's shared entries) gives the songs credited to exactly those artists together.
+     */
     fun artist(name: String): Flow<List<Song>> = watch {
+        val want = io.max.paperplay.core.metadata.splitArtistsClean(name).map { it.lowercase() }
         songs.allSongs().executeAsList()
-            .filter { s -> s.artist == name || io.max.paperplay.core.metadata.splitArtists(s.artist).any { it.equals(name, ignoreCase = true) } }
+            .filter { s ->
+                val names = io.max.paperplay.core.metadata.splitArtistsClean(s.artist).map { it.lowercase() }
+                if (want.size > 1) names.toSet() == want.toSet()
+                else s.artist == name || names.any { it == name.lowercase() } || io.max.paperplay.core.metadata.cleanArtistName(s.artist).equals(name, ignoreCase = true)
+            }
             .sortedWith(compareBy({ it.album }, { it.title }))
     }
     fun playlistSongs(id: Long): Flow<List<Song>> = watch { lists.playlistSongs(id).executeAsList() }

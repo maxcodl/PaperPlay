@@ -742,8 +742,8 @@ fun MainShell(backend: CoreBackend, prefs: UiPrefs, onRestore: () -> Unit, open:
                                     PlaylistsTab(lib.playlists, favorites, recents, pad, { d2 -> navigate { detail = d2 } }, { newPlaylist = true },
                                         { navigate { settings = true; settingsDeep = true; settingsStack.clear(); settingsStack.add("spotify") } })
                                 }
-                                k.page == "albums" -> Column { TopBar("Albums"); GroupGrid(LocalAlbums.current.collectAsState().value, pad, "No albums yet.") { g -> navigate { detail = Detail.Album(g.name, g.owner) } } }
-                                k.page == "artists" -> Column { TopBar("Artists"); GroupList(LocalArtists.current.collectAsState().value, pad, "No artists yet.", circle = true) { g -> navigate { detail = Detail.Artist(g.name) } } }
+                                k.page == "albums" -> Column { TopBar("Albums"); GroupBrowser(LocalAlbums.current.collectAsState().value, artists = false, pad) { g -> navigate { detail = Detail.Album(g.name, g.owner) } } }
+                                k.page == "artists" -> Column { TopBar("Artists"); GroupBrowser(LocalArtists.current.collectAsState().value, artists = true, pad) { g -> navigate { detail = Detail.Artist(g.name) } } }
                                 k.page == "favorites" -> Column { TopBar("Favorites"); SongList(favorites, currentId, actions, Modifier.fillMaxSize(), pad, empty = "No favorites yet.", listKey = "library:favorites") }
                                 else -> Column { TopBar("Recently played"); SongList(recents, currentId, actions, Modifier.fillMaxSize(), pad, sortable = false, empty = "Nothing played yet.") }
                             }

@@ -179,8 +179,8 @@ fun LibraryScreen(
                 is Load.Error -> Text(s.message, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
                 is Load.Ready -> SongList(s.value, currentId, actions, Modifier.fillMaxSize(), bottomPadding, empty = "No songs yet. Add a chat in Settings.", listKey = "library:songs")
             }
-            1 -> GroupGrid(LocalAlbums.current.collectAsState().value, bottomPadding, "No albums yet.") { onOpen(Detail.Album(it.name, it.owner)) }
-            2 -> GroupList(LocalArtists.current.collectAsState().value, bottomPadding, "No artists yet.", circle = true) { onOpen(Detail.Artist(it.name)) }
+            1 -> GroupBrowser(LocalAlbums.current.collectAsState().value, artists = false, bottomPadding) { onOpen(Detail.Album(it.name, it.owner)) }
+            2 -> GroupBrowser(LocalArtists.current.collectAsState().value, artists = true, bottomPadding) { onOpen(Detail.Artist(it.name)) }
             3 -> PlaylistsTab(lib.playlists, favorites, recents, bottomPadding, onOpen, onNewPlaylist, onImportSpotify)
             else -> SongList(favorites, currentId, actions, Modifier.fillMaxSize(), bottomPadding, empty = "No favorites yet.", listKey = "library:favorites")
         }
@@ -462,15 +462,15 @@ private fun SearchResults(
     bottomPadding: Dp, modifier: Modifier = Modifier,
 ) {
     val rowActions = remember(actions) { actions.rowActions() }
-    val albums = remember(results) { results.filter { it.album.isNotBlank() }.distinctBy { it.album to it.artist }.take(6) }
-    val artists = remember(results) { results.filter { it.artist.isNotBlank() }.distinctBy { it.artist }.take(6) }
+    // Albums and artists by the same cleaned names as their pages, so a result opens the whole album or artist.
+    val albums = remember(results) {
+        results.filter { it.album.isNotBlank() }.map { io.max.paperplay.core.metadata.cleanAlbumName(it.album) to it }.distinctBy { it.first.lowercase() }.take(6)
+    }
+    val artists = remember(results) { results.flatMap { s -> creditArtists(s.artist).map { it to s } }.distinctBy { it.first.lowercase() } }
     // Like a video search: an artist whose own name matches what was typed comes first, above the songs.
     val q = remember(query) { io.max.paperplay.core.metadata.SearchQuery(query) }
-    val topArtists = remember(results, q) {
-        results.filter { it.artist.isNotBlank() }.distinctBy { it.artist }
-            .filter { io.max.paperplay.core.metadata.songSearchScore(q, it.artist, "", "", null, null) > 0 }.take(3)
-    }
-    val otherArtists = remember(artists, topArtists) { artists.filter { a -> topArtists.none { it.artist == a.artist } } }
+    val topArtists = remember(artists, q) { artists.filter { io.max.paperplay.core.metadata.songSearchScore(q, it.first, "", "", null, null) > 0 }.take(3) }
+    val otherArtists = remember(artists, topArtists) { artists.filter { a -> topArtists.none { it.first == a.first } }.take(6) }
     // Songs in the account's indexed chats that match, so a song not in the library yet can still be found and added.
     val indexed = LocalIndexedChats.current
     val chatNames = indexed?.chats?.collectAsState()?.value.orEmpty().associate { it.id to it.title }
@@ -487,8 +487,8 @@ private fun SearchResults(
         if (results.isEmpty()) item(key = "none") { Text("Nothing in your library matches.", Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (topArtists.isNotEmpty()) {
             item(key = "h-top") { SearchHeader("Top result", topArtists.size) }
-            items(topArtists, key = { "t-${it.artist}" }) { s ->
-                SearchGroupRow(s.artist, "Artist", s.coverUri, "artist:${s.artist}", circle = true) { onOpen(Detail.Artist(s.artist)) }
+            items(topArtists, key = { "t-${it.first}" }) { (name, s) ->
+                SearchGroupRow(name, "Artist", s.coverUri, "artist:$name", circle = true) { onOpen(Detail.Artist(name)) }
             }
         }
         if (results.isNotEmpty()) item(key = "h-songs") { SearchHeader("Songs", results.size) }
@@ -501,14 +501,14 @@ private fun SearchResults(
         }
         if (albums.isNotEmpty()) {
             item(key = "h-albums") { SearchHeader("Albums", albums.size) }
-            items(albums, key = { "a-${it.album}-${it.artist}" }) { s ->
-                SearchGroupRow(s.album, s.artist, s.coverUri, s.id, circle = false) { onOpen(Detail.Album(s.album, s.artist.ifBlank { null })) }
+            items(albums, key = { "a-${it.first}" }) { (name, s) ->
+                SearchGroupRow(name, creditArtists(s.artist).joinToString(", "), s.coverUri, s.id, circle = false) { onOpen(Detail.Album(name, null)) }
             }
         }
         if (otherArtists.isNotEmpty()) {
             item(key = "h-artists") { SearchHeader("Artists", otherArtists.size) }
-            items(otherArtists, key = { "r-${it.artist}" }) { s ->
-                SearchGroupRow(s.artist, "", s.coverUri, "artist:${s.artist}", circle = true) { onOpen(Detail.Artist(s.artist)) }
+            items(otherArtists, key = { "r-${it.first}" }) { (name, s) ->
+                SearchGroupRow(name, "", s.coverUri, "artist:$name", circle = true) { onOpen(Detail.Artist(name)) }
             }
         }
         if (fromIndex.isNotEmpty()) {

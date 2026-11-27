@@ -374,8 +374,8 @@ fun SongMenu(
             // Each artist of the credit and the album open their own page.
             val openDetail = io.max.paperplay.ui.app.LocalOpenDetail.current
             if (openDetail != null) {
-                io.max.paperplay.core.metadata.splitArtists(song.artist).forEach { a -> item("Go to $a") { openDetail(io.max.paperplay.ui.app.Detail.Artist(a)) } }
-                if (song.album.isNotBlank()) item("Go to album ${song.album}") { openDetail(io.max.paperplay.ui.app.Detail.Album(song.album)) }
+                io.max.paperplay.ui.app.creditArtists(song.artist).forEach { a -> item("Go to $a") { openDetail(io.max.paperplay.ui.app.Detail.Artist(a)) } }
+                if (song.album.isNotBlank()) item("Go to album ${song.album}") { openDetail(io.max.paperplay.ui.app.Detail.Album(io.max.paperplay.core.metadata.cleanAlbumName(song.album))) }
             }
             actions.telegramLink(song)?.let { link ->
                 item("Open in Telegram") { runCatching { uri.openUri(link) }.onFailure { actions.notice("Could not open Telegram.") } }

@@ -109,7 +109,15 @@ data class LibraryUi(
 
 /** An album, artist or playlist entry. [coverUris] feed the mosaic. */
 /** [owner] is set for an album split off by artist; see core splitAlbum. */
-data class GroupUi(val id: String, val name: String, val subtitle: String = "", val coverUris: List<String?> = emptyList(), val owner: String? = null)
+data class GroupUi(
+    val id: String, val name: String, val subtitle: String = "", val coverUris: List<String?> = emptyList(), val owner: String? = null,
+    /** For sorting and filtering on the Albums and Artists pages: songs, newest post date, plays, favourite songs. */
+    val count: Int = 0, val addedAt: Long = 0, val plays: Long = 0, val favorites: Int = 0,
+    /** An artist entry for a shared credit ("A & B"), shown only when the page asks for shared credits. */
+    val combined: Boolean = false,
+    /** An artist with at least one song credited to them alone; with shared credits shown, only these single artists stay. */
+    val solo: Boolean = true,
+)
 
 enum class TaskStatus { Running, Queued, Done, Failed }
 

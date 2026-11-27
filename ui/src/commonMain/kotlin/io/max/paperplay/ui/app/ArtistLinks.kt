@@ -20,7 +20,7 @@ val LocalOpenDetail = compositionLocalOf<((Detail) -> Unit)?> { null }
 @Composable
 fun ArtistLinks(artist: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
     val open = LocalOpenDetail.current
-    val names = remember(artist) { io.max.paperplay.core.metadata.splitArtists(artist) }
+    val names = remember(artist) { creditArtists(artist) }
     if (open == null || names.isEmpty()) {
         Text(artist, modifier, maxLines = 1, style = style, color = color)
         return
@@ -39,5 +39,5 @@ fun ArtistLinks(artist: String, style: TextStyle, color: Color, modifier: Modifi
 @Composable
 fun AlbumLink(album: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
     val open = LocalOpenDetail.current
-    Text(album, if (open == null) modifier else modifier.clickable { open(Detail.Album(album)) }, maxLines = 1, style = style, color = color)
+    Text(album, if (open == null) modifier else modifier.clickable { open(Detail.Album(io.max.paperplay.core.metadata.cleanAlbumName(album))) }, maxLines = 1, style = style, color = color)
 }
