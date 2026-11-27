@@ -167,7 +167,7 @@ fun HomeScreen(
         if (ready && recentPlayed != null) item(key = "recent_played") { Box(Modifier.staggerIn(0)) { SongShelf(recentPlayed.title, recentPlayed.songs, currentId, actions, order = 0) } }
         if (ready && tileRows.isNotEmpty()) item {
             // Each column holds three tiles; two columns fill the screen and the rest wait a swipe away.
-            LazyRow(Modifier.staggerIn(1), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(Modifier.padding(top = 12.dp).staggerIn(1), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(tileRows) { column ->
                     val columnIndex = tileRows.indexOf(column)
                     Column(Modifier.fillParentMaxWidth(if (tileRows.size > 2) 0.46f else 0.485f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -461,7 +461,7 @@ fun GenreGrid(songs: List<SongUi>, bottomPadding: Dp, onOpen: (Detail) -> Unit, 
     BoxWithConstraints(modifier) {
         val cols = (maxWidth / 200.dp).toInt().coerceIn(2, 6)
         LazyVerticalGrid(
-            GridCells.Fixed(cols), Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, bottomPadding + 16.dp),
+            GridCells.Fixed(cols), Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, bottomPadding + 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(genres, key = { it.key }) { (genre, list) ->
