@@ -2,6 +2,23 @@
 
 All notable changes to PaperPlay are listed here, newest first. Each stable release adds its section automatically.
 
+## [1.23.3] - 2026-11-27
+
+### Other changes
+- PC: draw with Direct3D and a 128M graphics cache; frame probe for the real app ([`e8fa4c2`](https://github.com/maxcodl/PaperPlay/commit/e8fa4c2c5ee2b7b90552c3358fc27aeb5d33d925))
+- Delete button on album and artist pages, for that exact album or artist only ([`49ab8e0`](https://github.com/maxcodl/PaperPlay/commit/49ab8e0ead5ac357f4cfc3359ded382d5e92bbf3))
+- Albums and Artists: cleaned names, merged editions, separate artists, search, sort, filters and A-Z ([`8a9d410`](https://github.com/maxcodl/PaperPlay/commit/8a9d41078ee4abec854f4e300243eafe97932950))
+- Sound output picker in the PC player bar ([`02a62d2`](https://github.com/maxcodl/PaperPlay/commit/02a62d27701ab421716cedcf446a382805aa3b6d))
+- Glass preview matches real glass parts and stays pinned; pinned list bar uses the card's glass ([`1df2e1a`](https://github.com/maxcodl/PaperPlay/commit/1df2e1aa5c0b126b3dae5a52ff6ae4b12df6514c))
+- AutoEQ entry can be turned off from the list ([`0685af0`](https://github.com/maxcodl/PaperPlay/commit/0685af00535edda58c1cb900a17aa6bf41bbc2df))
+- Slide-up panels open fully on the PC, so the mouse wheel scrolls them ([`3867f42`](https://github.com/maxcodl/PaperPlay/commit/3867f422a05b1ee0385cb2277724be322e80b6ad))
+- No scroll bars on the PC ([`ec54c0e`](https://github.com/maxcodl/PaperPlay/commit/ec54c0e033e4f7afda111c84b87eceab38e97d46))
+- More room between Recently played and the tiles, and under the search bar ([`378d078`](https://github.com/maxcodl/PaperPlay/commit/378d078cd10238c6d0214110617096f3650a2ff1))
+- PC joins the Windows media controls, so media keys go to the last app used ([`3b9222e`](https://github.com/maxcodl/PaperPlay/commit/3b9222e146bee2961884894f3d5e6e7337c77151))
+- PC keeps sound settings per output and turns bit-perfect off on Bluetooth ([`517081d`](https://github.com/maxcodl/PaperPlay/commit/517081db9c4b45a0416ac133a923ebdb439305ee))
+
+**Full changes:** [v1.23.2...v1.23.3](https://github.com/maxcodl/PaperPlay/compare/v1.23.2...v1.23.3)
+
 ## [1.23.2] - 2026-11-26
 
 ### Other changes
