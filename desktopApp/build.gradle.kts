@@ -113,10 +113,8 @@ compose.desktop {
         System.getenv("PAPERPLAY_JAVA_HOME")?.let { javaHome = it }
         // Without limits the JVM grows its heap to a quarter of the machine's RAM and keeps it. Serial GC needs no extra GC threads or
         // regions, and the free-ratio flags hand unused heap back to the OS.
-        jvmArgs += listOf("-Xms32m", "-Xmx448m", "-XX:+UseSerialGC", "-XX:MinHeapFreeRatio=10", "-XX:MaxHeapFreeRatio=30", "-Xss512k", "-XX:MaxDirectMemorySize=128m", "-XX:ReservedCodeCacheSize=64m", "-XX:MaxMetaspaceSize=160m", "-Xshare:auto", "-Dpaperplay.version=${rootProject.extra["appVersion"]}", "-Dskiko.gpu.resourceCacheLimit=32M")
-        if (System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)) {
-            jvmArgs += listOf("-Dskiko.renderApi=OPENGL")
-        }
+        // 32M was too small for the covers and blur: Skia dropped tiles and covers showed grey blocks.
+        jvmArgs += listOf("-Xms32m", "-Xmx448m", "-XX:+UseSerialGC", "-XX:MinHeapFreeRatio=10", "-XX:MaxHeapFreeRatio=30", "-Xss512k", "-XX:MaxDirectMemorySize=128m", "-XX:ReservedCodeCacheSize=64m", "-XX:MaxMetaspaceSize=160m", "-Xshare:auto", "-Dpaperplay.version=${rootProject.extra["appVersion"]}", "-Dskiko.gpu.resourceCacheLimit=128M")
         buildTypes.release.proguard {
             isEnabled.set(true)
             obfuscate.set(false)

@@ -173,12 +173,7 @@ fun main(args: Array<String>) {
     }
     // GitHub's asset host rotates addresses and one of them can be unreachable here; Java uses the first and caches it, so a retry hit the same dead one.
     java.security.Security.setProperty("networkaddress.cache.ttl", "0")
-    if (System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true) &&
-        System.getProperty("skiko.renderApi") == null &&
-        System.getenv("SKIKO_RENDER_API") == null
-    ) {
-        System.setProperty("skiko.renderApi", "OPENGL")
-    }
+    // Windows uses Skia's default Direct3D: measured 27 Nov on Iris Xe, 0-2% late frames scrolling against 7-50% with OpenGL.
     io.max.paperplay.core.app.MemoryProbe.sample = ::jvmMemoryLine
     io.max.paperplay.core.app.MemoryProbe.echo = { println(it) }
     val logDir = File(System.getenv("APPDATA") ?: System.getProperty("user.home"), "PaperPlay")
@@ -496,6 +491,7 @@ fun main(args: Array<String>) {
             androidx.compose.runtime.LaunchedEffect(Unit) { installFileDrop(window) }
             androidx.compose.runtime.LaunchedEffect(Unit) { mark(dir, "window first composition") }
             App(env)
+            FrameProbe(window)
         }
         val miniVisible by io.max.paperplay.ui.app.DesktopMini.visible.collectAsState()
         if (miniVisible) MiniWindow()
