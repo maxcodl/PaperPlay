@@ -276,7 +276,9 @@ fun SongList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .drawBehind { if (pinned) drawRect(if (io.max.paperplay.ui.isPhone) pageTop?.value ?: base else cardFill) }
+                        // Desktop: pinned, it takes the card's own material (the same blur and tint), so it reads as part of the card.
+                        .then(if (pinned && !io.max.paperplay.ui.isPhone) Modifier.partSurface(LookGroup.Cards, cardFill, androidx.compose.ui.graphics.RectangleShape, plain = true) else Modifier)
+                        .drawBehind { if (pinned && io.max.paperplay.ui.isPhone) drawRect(pageTop?.value ?: base) }
                         .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

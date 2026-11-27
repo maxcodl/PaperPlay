@@ -589,9 +589,11 @@ fun DesktopSettings(
                     Column(Modifier.fillMaxSize().widthIn(max = 880.dp).padding(bottom = 24.dp)) {
                         if (targetPage != null) SettingsPage(targetPage, stack, prefs, conn, songCount, backend, onRestore)
                     }
-                } else {
+                } else Column(Modifier.fillMaxSize()) {
+                    // The glass preview stays put above the settings, so every change shows on it while scrolling.
+                    if (targetPage == "glass") Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = 880.dp)) { GlassPreview(prefs) } }
                     val contentScroll = rememberScrollState()
-                    DesktopScrollHost(contentScroll, Modifier.fillMaxSize()) { scrollMod ->
+                    DesktopScrollHost(contentScroll, Modifier.fillMaxWidth().weight(1f)) { scrollMod ->
                         Column(
                             // Sliders and rows stop at a readable width instead of stretching across a wide window.
                             scrollMod.widthIn(max = 880.dp).verticalScroll(contentScroll).padding(bottom = 24.dp)

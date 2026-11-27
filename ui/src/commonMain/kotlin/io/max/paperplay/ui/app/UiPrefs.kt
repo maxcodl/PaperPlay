@@ -398,12 +398,18 @@ private val rimColor = Color.White.copy(alpha = 0.18f)
  * the outer shadow and the inner glow. Without a blur layer the surface is the tint with the same edge, shadow and glow.
  */
 @Composable
-fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape): Modifier {
+fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape, plain: Boolean = false): Modifier {
     val prefs = LocalUiPrefs.current
     if (prefs == null || prefs.look(group) != Look.Glass) return clip(shape).background(color)
-    val backdrop = io.max.paperplay.ui.LocalGlassBackdrop.current
+    return glassSurface(prefs, color, shape, io.max.paperplay.ui.LocalGlassBackdrop.current, plain)
+}
+
+/** The glass material itself, over [backdrop]; shared by every glass part and the preview on the Glass page, so the preview shows exactly what parts get. */
+@Composable
+fun Modifier.glassSurface(prefs: UiPrefs, color: Color, shape: Shape, backdrop: com.kyant.backdrop.Backdrop?, plain: Boolean = false): Modifier {
     val reduced = io.max.paperplay.ui.theme.LocalReducedTransparency.current
-    val modern = io.max.paperplay.ui.theme.LocalModernTokens.current.enabled
+    // Plain: the blurred material only, no edge line, shadow or glow (for a strip inside a glass card, such as a pinned list bar).
+    val modern = plain || io.max.paperplay.ui.theme.LocalModernTokens.current.enabled
     val alpha = surfaceAlpha(prefs.glassTint)
     val blurDp = prefs.glassBlur.dp
     val g = prefs.glass
@@ -419,6 +425,9 @@ fun Modifier.partSurface(group: LookGroup, color: Color, shape: Shape): Modifier
                 innerShadow = if (!modern && g.innerAlpha > 0f) ({ com.kyant.backdrop.shadow.InnerShadow(radius = g.innerRadius.dp, color = Color.White.copy(alpha = g.innerAlpha)) }) else null,
                 onDrawSurface = { drawRect(color.copy(alpha = alpha)) },
             )
+    } else if (plain) {
+        // Without the blur a see-through strip would show the rows under it, so it stays solid.
+        clip(shape).background(color)
     } else {
         val white = Color.White
         val edgeBrush: Brush = when (g.edgeStyle) {

@@ -8,6 +8,8 @@ import io.max.paperplay.ui.components.modernSurface
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -152,7 +154,10 @@ private fun SettingsScreen(
         if (page == "index") IndexPage(backend, stack, bottomPadding)
         else if (page == "dupes") DuplicatesPage(backend, bottomPadding)
         else if (page != null && page.startsWith("index:")) ChatSongsPage(backend, page.removePrefix("index:").toLongOrNull() ?: 0L, stack, bottomPadding)
-        else Column(
+        else {
+        // The glass preview stays put above the settings, so every change shows on it while scrolling.
+        if (page == "glass") GlassPreview(prefs)
+        Column(
             Modifier.fillMaxSize()
                 // A scrolling page keeps the room for the bottom bar as padding at its end. A lazy list pads its own content instead
                 // (LocalPageBottomPadding), so it scrolls under the bar and is not cut off at a hard edge above it.
@@ -161,6 +166,7 @@ private fun SettingsScreen(
             androidx.compose.runtime.CompositionLocalProvider(LocalPageBottomPadding provides bottomPadding) {
                 if (page == null) SettingsList(prefs, stack) else SettingsPage(page, stack, prefs, conn, songCount, backend, onRestore)
             }
+        }
         }
     }
 }
@@ -308,12 +314,17 @@ internal fun SettingsPage(
         }
         "nav" -> NavSettings(prefs)
         "glass" -> {
-            GlassPreview(prefs)
+            // The preview sits above the scrolling page (Settings and DesktopShell), so it stays in view.
             Text("Applies to every part set to Glass on the Appearance page.", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             val g = prefs.glass
             SectionLabel("Material")
             if (!isPhone) SwitchRow("Blur the background", prefs.desktopBlur, prefs::putDesktopBlur, null, "Off is much faster; glass is then a tint and an edge line")
-            SliderRow("Blur: ${g.blur.toInt()} dp", g.blur, 0f..40f, { prefs.updateGlass(g.copy(blur = it)) })
+            // On the PC the blur amount only matters while the blur is switched on.
+            SliderRow(
+                "Blur: ${g.blur.toInt()} dp", g.blur, 0f..40f, { prefs.updateGlass(g.copy(blur = it)) },
+                hint = if (!isPhone && !prefs.desktopBlur) "Turn on Blur the background to use this" else null,
+                enabled = isPhone || prefs.desktopBlur,
+            )
             if (io.max.paperplay.ui.glassLensSupported()) {
                 SliderRow("Refraction height: ${g.lensHeight.toInt()} dp", g.lensHeight, 0f..48f, { prefs.updateGlass(g.copy(lensHeight = it)) })
                 SliderRow("Refraction amount: ${g.lensAmount.toInt()} dp", g.lensAmount, 0f..48f, { prefs.updateGlass(g.copy(lensAmount = it)) })
@@ -800,23 +811,26 @@ private fun AvatarPreview() {
 
 /** Live sample of the glass material over a colourful backdrop, using the current blur and tint. */
 @Composable
-private fun GlassPreview(prefs: UiPrefs) {
+internal fun GlassPreview(prefs: UiPrefs) {
     val backdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val scheme = MaterialTheme.colorScheme
-    Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(150.dp).clip(RoundedCornerShape(28.dp))) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(150.dp).clip(RoundedCornerShape(28.dp))) {
+        // The pill keeps one width however wide the page is, and the two balls sit across its corners, so part of each is always behind the glass.
+        val pillW = minOf(maxWidth * 0.72f, 360.dp)
+        val pillH = 68.dp
         Box(
             Modifier.fillMaxSize().layerBackdrop(backdrop)
                 .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(scheme.primary, scheme.tertiary, scheme.secondary))),
         ) {
-            Box(Modifier.padding(start = 24.dp, top = 20.dp).size(56.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f)))
-            Box(Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 16.dp).size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)))
+            Box(Modifier.align(Alignment.Center).offset(-pillW / 2 + 8.dp, -pillH / 2 + 4.dp).size(56.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f)))
+            Box(Modifier.align(Alignment.Center).offset(pillW / 2 - 12.dp, pillH / 2 - 8.dp).size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)))
         }
-        io.max.paperplay.ui.GlassSurface(
-            backdrop, Modifier.align(Alignment.Center).fillMaxWidth(0.72f).height(68.dp),
-            cornerRadius = 24.dp, blur = prefs.glassBlur.dp, tintAlpha = prefs.glassTint,
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Glass preview", style = MaterialTheme.typography.titleMedium) }
-        }
+        val label: @Composable () -> Unit = { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Glass preview", style = MaterialTheme.typography.titleMedium) } }
+        val pill = Modifier.align(Alignment.Center).width(pillW).height(pillH)
+        // PC: drawn exactly as glass parts are (same blur switch, blur, tint, saturation and edge), so the preview shows what the app shows.
+        // Phone: the lens surface the navigation bar uses, so the refraction settings show here too.
+        if (isPhone) io.max.paperplay.ui.GlassSurface(backdrop, pill, cornerRadius = 24.dp, blur = prefs.glassBlur.dp, tintAlpha = prefs.glassTint) { label() }
+        else Box(pill.glassSurface(prefs, scheme.surfaceContainer, RoundedCornerShape(24.dp), backdrop)) { label() }
     }
 }
 
