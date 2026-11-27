@@ -419,6 +419,9 @@ private fun Modifier.desktopSmoothWheelScrollImpl(
     }
 }
 
+
+/** The owner wants no scroll bars anywhere: scrolling stays (wheel, drag, keys), only the bar is not drawn. True brings them back. */
+private const val ShowScrollbars = false
 /**
  * Wraps a scrollable [LazyListState] container on desktop with smooth wheel scrolling and a fading
  * vertical scrollbar. On phone, invokes [content] directly with [modifier].
@@ -474,7 +477,7 @@ fun DesktopScrollHost(
                 },
             ),
         )
-        if (isScrollable && showScrollbar) {
+        if (ShowScrollbars && isScrollable && showScrollbar) {
             val metrics by remember {
                 derivedStateOf {
                     val info = state.layoutInfo
@@ -571,7 +574,7 @@ fun DesktopScrollHost(
                 },
             ),
         )
-        if (isScrollable) {
+        if (ShowScrollbars && isScrollable) {
             val metrics by remember {
                 derivedStateOf {
                     val max = state.maxValue.toFloat().coerceAtLeast(1f)
