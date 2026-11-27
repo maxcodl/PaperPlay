@@ -103,6 +103,8 @@ data class OutputInfo(
     val transport: TransportInfo? = null,
     /** Stable per-device key for EQ auto-assignment (e.g. `usb:1234:5678`, `bt:AA:BB`, `wired:3.5mm`, `speaker:internal`, `desktop:id`). */
     val deviceKey: String? = null,
+    /** The output is a Bluetooth device, which always re-encodes the sound, so it can never be bit-perfect. */
+    val bluetooth: Boolean = false,
 )
 
 internal val NoOutputInfo: StateFlow<OutputInfo?> = kotlinx.coroutines.flow.MutableStateFlow(null)

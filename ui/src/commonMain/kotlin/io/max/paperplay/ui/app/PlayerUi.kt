@@ -445,7 +445,7 @@ private fun PlayerBody(
                         if (onQueue != null) IconButton(onQueue) { AppIcon(Icons.AutoMirrored.Rounded.QueueMusic, "Queue") }
                         if (backend.hasBass) {
                             val bitPerfect by backend.bitPerfect.collectAsState()
-                            BitPerfectButton(bitPerfect, scheme.onSurface.copy(alpha = 0.7f), Modifier.size(22.dp)) { backend.setBitPerfect(!bitPerfect) }
+                            BitPerfectButton(bitPerfect, scheme.onSurface.copy(alpha = 0.7f), Modifier.size(22.dp), bitPerfectUnavailable(backend)) { backend.setBitPerfect(!bitPerfect) }
                         }
                         // Less used controls live behind one button.
                         var showSleep by remember { mutableStateOf(false) }
@@ -935,10 +935,13 @@ private fun DetailSection(title: String, rows: List<Pair<String, String>>) {
 internal fun BitPerfectRow(backend: PlayerControls) {
     if (!backend.hasBass) return
     val on by backend.bitPerfect.collectAsState()
-    val subtitle = if (io.max.paperplay.ui.isPhone) {
+    val bluetooth = !io.max.paperplay.ui.isPhone && backend.outputInfo.collectAsState().value?.bluetooth == true
+    val subtitle = if (bluetooth) {
+        "Not available on Bluetooth: the sound is always re-encoded on the way. Kept per output, so it comes back on other outputs."
+    } else if (io.max.paperplay.ui.isPhone) {
         "Plays eligible audio untouched on verified USB DACs or bit-perfect mixers. Equalizer, bass, normalise and profile are bypassed."
     } else {
         "Plays the file untouched through exclusive output. The equalizer and bass are bypassed, and other apps go quiet."
     }
-    SwitchRow("Bit-perfect", on, { backend.setBitPerfect(it) }, io.max.paperplay.ui.components.TrueAudioIcon, subtitle)
+    SwitchRow("Bit-perfect", on && !bluetooth, { backend.setBitPerfect(it) }, io.max.paperplay.ui.components.TrueAudioIcon, subtitle, enabled = !bluetooth)
 }

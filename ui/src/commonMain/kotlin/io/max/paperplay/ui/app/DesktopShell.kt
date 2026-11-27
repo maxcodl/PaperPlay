@@ -413,7 +413,7 @@ fun PlayerBar(
             if (backend != null && backend.hasBass) {
                 // Same kind of button as the equalizer: one tap switches untouched, exclusive output on or off.
                 val bitPerfect by backend.bitPerfect.collectAsState()
-                BitPerfectButton(bitPerfect, off, sz) { backend.setBitPerfect(!bitPerfect) }
+                BitPerfectButton(bitPerfect, off, sz, bitPerfectUnavailable(backend)) { backend.setBitPerfect(!bitPerfect) }
             }
             if (backend != null) {
                 val eqOn by backend.eqOn.collectAsState()

@@ -980,6 +980,13 @@ class CoreBackend(val services: AppServices) : PlayerControls {
     }
 
     override fun setBitPerfect(on: Boolean) {
+        // PC: a Bluetooth output always re-encodes the sound, so bit-perfect stays off there.
+        if (on && !io.max.paperplay.ui.isPhone && _outputInfo.value?.bluetooth == true) return
+        applyBitPerfect(on)
+        if (!io.max.paperplay.ui.isPhone) saveForOutput()
+    }
+
+    private fun applyBitPerfect(on: Boolean) {
         bitPerfect.value = on
         io.max.paperplay.player.PlatformBitPerfectPrefs.save(
             if (on) io.max.paperplay.player.BitPerfectMode.ON else io.max.paperplay.player.BitPerfectMode.OFF,
@@ -1111,10 +1118,15 @@ class CoreBackend(val services: AppServices) : PlayerControls {
     /** The equalizer settings as one line, kept per output under `eq_out:<name>`. */
     private fun eqSnapshot(): String = listOf(
         "on=${eqOn.value}", "gains=${eqGains.value.joinToString(",")}", "bass=${eqBass.value}", "width=${eqWidth.value}",
-        "earphone=${eqEarphone.value}", "exact=${eqExact.value}", "options=${eqOptions.value}",
+        "earphone=${eqEarphone.value}", "exact=${eqExact.value}", "options=${eqOptions.value}", "bp=${bitPerfect.value}",
     ).joinToString(";")
 
-    private fun saveForOutput() { eqOutput.value?.let { repo.savePref("eq_out:$it", eqSnapshot()) } }
+    /** Saves the current sound settings for the current output: the line above, and the parametric (AutoEQ) profile under `peq_out:<name>`. */
+    private fun saveForOutput() {
+        val name = eqOutput.value ?: return
+        repo.savePref("eq_out:$name", eqSnapshot())
+        repo.savePref("peq_out:$name", io.max.paperplay.player.ParametricEqCodec.exportPowerampJson(peqProfile.value, includePaperPlayMeta = true))
+    }
 
     /** Output device changed (earbuds, BT, USB DAC, wired, speaker, or desktop output). Applies any saved per-device mapping. */
     private fun onOutput(info: io.max.paperplay.player.OutputInfo) {
@@ -1122,10 +1134,24 @@ class CoreBackend(val services: AppServices) : PlayerControls {
         val key = info.deviceKey ?: "out:$name"
         val keyChanged = key != eqDeviceKey.value
         val nameChanged = name != eqOutput.value
-        if (!keyChanged && !nameChanged) return
+        if (!keyChanged && !nameChanged) {
+            // Bluetooth re-encodes the sound, so bit-perfect cannot hold there.
+            if (!io.max.paperplay.ui.isPhone && info.bluetooth && bitPerfect.value) applyBitPerfect(false)
+            return
+        }
+        // PC: bit-perfect is kept per output too. Read before the equalizer restore below saves this output's line again.
+        val savedBp = repo.pref("eq_out:$name")?.split(';')?.firstOrNull { it.startsWith("bp=") }?.removePrefix("bp=")?.toBooleanStrictOrNull()
         eqOutput.value = name
         eqDeviceKey.value = key
+        restoreOutputEq(key, name)
+        if (!io.max.paperplay.ui.isPhone) {
+            val want = !info.bluetooth && (savedBp ?: bitPerfect.value)
+            if (want != bitPerfect.value) applyBitPerfect(want) else saveForOutput()
+        }
+    }
 
+    /** Applies the equalizer assigned to output [key], or else the settings last used on output [name]. */
+    private fun restoreOutputEq(key: String, name: String) {
         val mapped = runCatching { services.eqRepo.assignmentForDevice(key) }.getOrNull()
         eqDeviceAssigned.value = mapped != null
         if (mapped != null) {
@@ -1138,7 +1164,6 @@ class CoreBackend(val services: AppServices) : PlayerControls {
             return
         }
 
-        if (!io.max.paperplay.ui.isPhone) return
         val saved = repo.pref("eq_out:$name")
         if (saved == null) { saveForOutput(); return }
         val m = saved.split(';').mapNotNull { kv -> kv.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap()
@@ -1152,6 +1177,10 @@ class CoreBackend(val services: AppServices) : PlayerControls {
         m["earphone"]?.let { eqEarphone.value = it; repo.savePref("eq_earphone", it) }
         m["exact"]?.let { eqExact.value = it == "true"; repo.savePref("eq_exact", it) }
         m["options"]?.toIntOrNull()?.let { eqOptions.value = it; repo.savePref("eq_options", "$it") }
+        // The parametric (AutoEQ) profile this output last used; outputs saved before it was kept per output keep the current one.
+        repo.pref("peq_out:$name")?.let { json ->
+            io.max.paperplay.player.ParametricEqCodec.parsePowerampJson(json)?.let { p -> peqProfile.value = p; repo.savePref("peq_active_json", json) }
+        }
         if (playerStarted.value) {
             pushParametricToPlayer()
             player.setExactLevel(eqExact.value)

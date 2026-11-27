@@ -66,6 +66,10 @@ internal class MpvPlayerEngine(private val lib: MpvLib, options: Map<String, Str
     @Volatile private var profile: List<Pair<Double, Double>>? = null
     @Volatile private var plan: MpvFilters.Plan? = null
     @Volatile private var graph: String? = null
+    /** Windows' default output while mpv follows it (audio-device=auto). */
+    @Volatile private var windowsOutput: WindowsOutputDevice? = null
+    /** The output picked in the app, or null to follow Windows' default. */
+    @Volatile private var chosenOutput: WindowsOutputDevice? = null
     /** What mpv answered when the filter graph was last set (negative is an error), and the graph; for tests and the log. */
     @Volatile internal var filterResult = 0
     @Volatile internal var lastGraph: String? = null
@@ -92,6 +96,14 @@ internal class MpvPlayerEngine(private val lib: MpvLib, options: Map<String, Str
         lib.mpv_observe_property(ctx, 3, "pause", MpvC.FORMAT_FLAG)
         lib.mpv_observe_property(ctx, 4, "demuxer-cache-time", MpvC.FORMAT_DOUBLE)
         events = Thread({ eventLoop() }, "mpv-events").apply { isDaemon = true; start() }
+        // Windows' default output, looked at every few seconds: the output info and the per-device settings follow a switch made in Windows.
+        Thread({
+            while (!closed) {
+                val now = WindowsOutputDevice.current()
+                if (now?.id != windowsOutput?.id) { windowsOutput = now; cmd { publishInfo() } }
+                try { Thread.sleep(3_000) } catch (_: InterruptedException) { return@Thread }
+            }
+        }, "mpv-output-watch").apply { isDaemon = true; start() }
     }
 
     // ---- mpv access
@@ -496,8 +508,9 @@ internal class MpvPlayerEngine(private val lib: MpvLib, options: Map<String, Str
     // ---- output info
 
     private fun deviceName(): String {
-        val id = str("audio-device") ?: return "System default output"
-        if (id == "auto") return "System default output"
+        val id = str("audio-device")
+        if (id == null || id == "auto") return windowsOutput?.name ?: "System default output"
+        chosenOutput?.takeIf { id == "wasapi/${it.id}" }?.let { return it.name }
         val json = str("audio-device-list") ?: return id
         val m = Regex("\"name\":\"((?:[^\"\\\\]|\\\\.)*)\",\"description\":\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(json)
             .firstOrNull { it.groupValues[1].replace("\\\\", "\\") == id }
@@ -545,7 +558,8 @@ internal class MpvPlayerEngine(private val lib: MpvLib, options: Map<String, Str
             highTrimDb = plan?.highTrimDb,
         )
         val rawDevId = str("audio-device")?.takeIf { it.isNotBlank() } ?: "auto"
-        _info.value = evaluated.outputInfo.copy(deviceKey = "desktop:$rawDevId")
+        val win = if (rawDevId == "auto") windowsOutput else chosenOutput?.takeIf { rawDevId == "wasapi/${it.id}" }
+        _info.value = evaluated.outputInfo.copy(deviceKey = "desktop:${win?.id ?: rawDevId}", bluetooth = win?.bluetooth == true)
         _bitPerfectStatus.value = evaluated.status
     }
 
